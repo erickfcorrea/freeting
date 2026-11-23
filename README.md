@@ -2,7 +2,7 @@
   <img src="public/freeting-logo.svg" alt="FREETING" width="480" />
 </div>
 
-# FREETING — Videoconferências & Gravações Sem Limites (`∞`)
+# FREETING — Videoconferências & Gravações Sem Limites
 
 O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, agendamento semanal e gravação contínua no navegador, construída para oferecer **reuniões 100% gratuitas e sem limite de tempo**.
 
@@ -26,14 +26,14 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
 
 ## Atalhos de Teclado na Sala
 
-| Atalho | Ação |
-| :--- | :--- |
-| `Alt + M` | Ativar / Desativar Microfone |
-| `Alt + V` | Ativar / Desativar Câmera |
-| `Alt + R` | Iniciar / Parar Gravação Ilimitada (`REC ∞`) |
+| Atalho    | Ação                                          |
+| :-------- | :-------------------------------------------- |
+| `Alt + M` | Ativar / Desativar Microfone                  |
+| `Alt + V` | Ativar / Desativar Câmera                     |
+| `Alt + R` | Iniciar / Parar Gravação Ilimitada (`REC ∞`)  |
 | `Alt + C` | Alternar Legendas ao Vivo em Português (`CC`) |
-| `Alt + H` | Levantar / Abaixar a Mão (`✋`) |
-| `?` | Abrir Guia de Atalhos e Acessibilidade |
+| `Alt + H` | Levantar / Abaixar a Mão (`✋`)               |
+| `?`       | Abrir Guia de Atalhos e Acessibilidade        |
 
 ---
 
