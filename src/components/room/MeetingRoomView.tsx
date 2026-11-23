@@ -17,7 +17,6 @@ import {
   LayoutGrid,
   Lock,
   Info,
-  Users,
   UserPlus,
   Copy,
   Check,
@@ -37,6 +36,9 @@ import {
   FileText,
   Edit3,
   Eye,
+  Keyboard,
+  Contrast,
+  Wifi,
 } from "lucide-react";
 import { formatShareableLink } from "@/domain/roomCode";
 import {
@@ -70,10 +72,24 @@ import {
 const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "😂", "😮"];
 
 const SIMULATED_BOT_PROFILES = [
-  { name: "Dra. Camila Mendes", greeting: "Olá pessoal! Que ótimo não termos mais o limite de 1 hora de reunião aqui no FREETING." },
-  { name: "Carlos Eduardo (Tech Lead)", greeting: "Áudio e vídeo super estáveis. Já ativei as anotações na minha aba também!" },
-  { name: "Marina Costa (Produto)", greeting: "A gravação ilimitada em WebM funcionando direto no navegador salvou nossa sprint." },
+  {
+    name: "Dra. Camila Mendes",
+    greeting:
+      "Olá pessoal! Que ótimo não termos mais o limite de 1 hora de reunião aqui no FREETING.",
+  },
+  {
+    name: "Carlos Eduardo (Tech Lead)",
+    greeting:
+      "Áudio e vídeo super estáveis. Já ativei as anotações na minha aba também!",
+  },
+  {
+    name: "Marina Costa (Produto)",
+    greeting:
+      "A gravação ilimitada em WebM funcionando direto no navegador salvou nossa sprint.",
+  },
 ];
+
+export type StageLayoutMode = "auto" | "grid" | "spotlight";
 
 export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const router = useRouter();
@@ -82,7 +98,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const [clockText, setClockText] = useState("18:32");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Media States (default matching Screenshot 2: camera off showing centered circular avatar + warning badges)
+  // Media & Accessibility States
   const [isMuted, setIsMuted] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -90,6 +106,12 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
   const [isCallEnded, setIsCallEnded] = useState(false);
+  const [highContrastMode, setHighContrastMode] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<StageLayoutMode>("auto");
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [a11yLiveText, setA11yLiveText] = useState(
+    `Conectado à sala ${roomCode} sem limite de 1 hora.`
+  );
 
   // Overlays & Cards (Screenshot 2: "Sua reunião está pronta" + Teal Portuguese Gemini/AI card)
   const [showReadyCard, setShowReadyCard] = useState(true);
@@ -107,7 +129,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const screenStreamRef = useRef<MediaStream | null>(null);
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
-  const localPeerIdRef = useRef<string>(`peer_${Math.random().toString(36).slice(2, 9)}`);
+  const localPeerIdRef = useRef<string>(
+    `peer_${Math.random().toString(36).slice(2, 9)}`
+  );
 
   // Participants, Chat, Captions, Reactions, AI
   const [participants, setParticipants] = useState<RoomParticipant[]>([
@@ -144,7 +168,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const [recordingSession, setRecordingSession] =
     useState<UnlimitedRecordingSession | null>(null);
   const [recordingTickMs, setRecordingTickMs] = useState<number>(Date.now());
-  const [savedRecordings, setSavedRecordings] = useState<StoredRecordingMeta[]>([]);
+  const [savedRecordings, setSavedRecordings] = useState<StoredRecordingMeta[]>(
+    []
+  );
+
+  const announce = useCallback((msg: string) => {
+    setA11yLiveText(msg);
+  }, []);
 
   // Update clock and unlimited call duration every second
   useEffect(() => {
@@ -263,12 +293,15 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   };
 
   // Toggle Microphone
-  const handleToggleMic = async () => {
+  const handleToggleMic = useCallback(async () => {
     if (isMuted) {
       try {
         const stream =
           localStreamRef.current ||
-          (await navigator.mediaDevices.getUserMedia({ audio: true, video: !isCameraOff }));
+          (await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: !isCameraOff,
+          }));
         localStreamRef.current = stream;
         stream.getAudioTracks().forEach((t) => (t.enabled = true));
         webrtcEngineRef.current?.updateLocalStream(stream);
@@ -276,20 +309,28 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         // Fallback: allow UI unmute state even in headless/permissionless browser environments
       }
       setIsMuted(false);
+      announce("Microfone ativado");
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p))
+        prev.map((p) =>
+          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p
+        )
       );
     } else {
-      localStreamRef.current?.getAudioTracks().forEach((t) => (t.enabled = false));
+      localStreamRef.current
+        ?.getAudioTracks()
+        .forEach((t) => (t.enabled = false));
       setIsMuted(true);
+      announce("Microfone desativado");
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p))
+        prev.map((p) =>
+          p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p
+        )
       );
     }
-  };
+  }, [isMuted, isCameraOff, announce]);
 
   // Toggle Camera
-  const handleToggleCamera = async () => {
+  const handleToggleCamera = useCallback(async () => {
     if (isCameraOff) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -302,17 +343,19 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         // Fallback if no physical webcam is connected
       }
       setIsCameraOff(false);
+      announce("Câmera ativada");
       setParticipants((prev) =>
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
       );
     } else {
       localStreamRef.current?.getVideoTracks().forEach((t) => t.stop());
       setIsCameraOff(true);
+      announce("Câmera desativada");
       setParticipants((prev) =>
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p))
       );
     }
-  };
+  }, [isCameraOff, isMuted, announce]);
 
   // Toggle Screen Share
   const handleToggleScreenShare = async () => {
@@ -328,6 +371,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           screenStreamRef.current = null;
         };
         setIsScreenSharing(true);
+        announce("Compartilhamento de tela iniciado");
       } catch {
         // User cancelled screen picker
       }
@@ -335,11 +379,12 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       releaseMediaStream(screenStreamRef.current);
       screenStreamRef.current = null;
       setIsScreenSharing(false);
+      announce("Compartilhamento de tela encerrado");
     }
   };
 
   // Start / Pause / Resume / Stop Unlimited Recording
-  const handleStartUnlimitedRecording = async () => {
+  const handleStartUnlimitedRecording = useCallback(async () => {
     const recorder = new LiveUnlimitedMediaRecorder(roomCode, (updated) => {
       setRecordingSession({ ...updated });
     });
@@ -356,36 +401,51 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       participantNames: participants.map((p) => p.name),
       getActiveCaption: () =>
         captions.length > 0
-          ? `${captions[captions.length - 1].speakerName}: ${captions[captions.length - 1].text}`
+          ? `${captions[captions.length - 1].speakerName}: ${
+              captions[captions.length - 1].text
+            }`
           : "",
     });
-  };
+    announce(
+      "Gravação ilimitada iniciada. Os chunks estão sendo salvos no IndexedDB."
+    );
+  }, [roomCode, isScreenSharing, participants, captions, announce]);
 
   const handlePauseResumeRecording = () => {
     if (!recorderRef.current || !recordingSession) return;
     if (recordingSession.state === "RECORDING") {
       recorderRef.current.pause();
+      announce("Gravação pausada");
     } else if (recordingSession.state === "PAUSED") {
       recorderRef.current.resume();
+      announce("Gravação retomada");
     }
   };
 
-  const handleStopAndDownloadRecording = async () => {
+  const handleStopAndDownloadRecording = useCallback(async () => {
     if (!recorderRef.current) return;
     await recorderRef.current.stopAndSave({
       title: `Reunião FREETING (${roomCode})`,
-      transcriptSummary: captions.map((c) => `${c.speakerName}: ${c.text}`).join(" | "),
+      transcriptSummary: captions
+        .map((c) => `${c.speakerName}: ${c.text}`)
+        .join(" | "),
       autoDownload: true,
     });
     recorderRef.current = null;
     setRecordingSession(null);
+    announce("Gravação finalizada e arquivo WebM baixado com sucesso.");
     await refreshVault();
-  };
+  }, [roomCode, captions, announce, refreshVault]);
 
-  // Toggle Live Captions (pt-BR) + Add realistic sample caption if mic isn't speaking
-  const handleToggleCaptions = () => {
+  // Toggle Live Captions (pt-BR)
+  const handleToggleCaptions = useCallback(() => {
     const next = !isCaptionsOn;
     setIsCaptionsOn(next);
+    announce(
+      next
+        ? "Legendas ao vivo em português ativadas"
+        : "Legendas ao vivo desativadas"
+    );
     if (next) {
       const entry: RoomCaptionEntry = {
         id: `cap_${Date.now()}`,
@@ -396,9 +456,53 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       setCaptions((prev) => [...prev, entry]);
       webrtcEngineRef.current?.broadcast({ type: "CAPTION", entry });
     }
-  };
+  }, [isCaptionsOn, clockText, announce]);
 
-  // Simulate adding a remote WebRTC participant so user can test multi-peer layouts & recording immediately
+  // Global Accessible Keyboard Shortcuts (Alt+M, Alt+V, Alt+R, Alt+C, Alt+H, ?)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.altKey && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        handleToggleMic();
+      } else if (e.altKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        handleToggleCamera();
+      } else if (e.altKey && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        if (!recordingSession) handleStartUnlimitedRecording();
+        else handleStopAndDownloadRecording();
+      } else if (e.altKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleToggleCaptions();
+      } else if (e.altKey && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setIsHandRaised((prev) => !prev);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShowShortcutsModal((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleToggleMic,
+    handleToggleCamera,
+    handleStartUnlimitedRecording,
+    handleStopAndDownloadRecording,
+    handleToggleCaptions,
+    recordingSession,
+  ]);
+
+  // Simulate adding a remote WebRTC participant
   const handleAddSimulatedParticipant = () => {
     const profile =
       SIMULATED_BOT_PROFILES[
@@ -420,6 +524,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       joinedAtIso: new Date().toISOString(),
     };
     setParticipants((prev) => [...prev, newBot]);
+    announce(`${profile.name} entrou na reunião.`);
 
     const botMsg: RoomChatMessage = {
       id: `msg_${Date.now()}`,
@@ -439,7 +544,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     setCaptions((prev) => [...prev, botCaption]);
   };
 
-  // Send AI Assistant Prompt ("Pedir para IA...")
+  // Send AI Assistant Prompt
   const handleSendAiPrompt = (e?: React.FormEvent, customPrompt?: string) => {
     e?.preventDefault();
     const query = (customPrompt ?? aiPrompt).trim();
@@ -456,6 +561,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     setAiResponses((prev) => [resp, ...prev]);
     setAiPrompt("");
     setActiveDrawer("ai");
+    announce("Resposta do Assistente IA gerada.");
   };
 
   // Send Chat Message
@@ -486,6 +592,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     });
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     triggerBlobDownload(blob, `ata-freeting-${roomCode}.md`);
+    announce("Ata da reunião exportada em Markdown.");
   };
 
   // End Call & Clean Hardware Tracks
@@ -497,6 +604,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     releaseMediaStream(screenStreamRef.current);
     webrtcEngineRef.current?.disconnect();
     setIsCallEnded(true);
+    announce("Você saiu da chamada.");
   };
 
   const handleCopyRoomLink = async () => {
@@ -507,6 +615,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     try {
       await navigator.clipboard.writeText(url);
       setCopiedLink(true);
+      announce("Link da sala copiado.");
       setTimeout(() => setCopiedLink(false), 2500);
     } catch {
       // ignore
@@ -515,11 +624,11 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
   const activeRecDurationSec = recordingSession
     ? Math.floor(
-        getEffectiveRecordingDurationMs(recordingSession, recordingTickMs) / 1000
+        getEffectiveRecordingDurationMs(recordingSession, recordingTickMs) /
+          1000
       )
     : 0;
 
-  // Post-call summary screen (like Google Meet's "Você saiu da reunião" + FREETING Recording Vault)
   if (isCallEnded) {
     return (
       <div className="min-h-screen bg-[#131314] text-white flex flex-col items-center justify-center p-6">
@@ -529,7 +638,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           </div>
           <h1 className="text-2xl font-normal">Você saiu da reunião</h1>
           <p className="text-sm text-[#c4c7c5]">
-            Sala <code className="text-white font-mono">{roomCode}</code> • Tempo total de sessão:{" "}
+            Sala <code className="text-white font-mono">{roomCode}</code> • Tempo
+            total de sessão:{" "}
             <strong className="text-[#81c995]">
               {formatUnlimitedDuration(elapsedSeconds)} (Sem limite de 1h)
             </strong>
@@ -565,8 +675,17 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#131314] text-white flex flex-col justify-between overflow-hidden select-none">
-      {/* TOP BAR — Exact Match to Screenshot 2 + FREETING Unlimited Telemetry */}
+    <div
+      className={`h-screen w-screen flex flex-col justify-between overflow-hidden select-none ${
+        highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
+      }`}
+    >
+      {/* ARIA Live Status Region for Screen Readers */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {a11yLiveText}
+      </div>
+
+      {/* TOP BAR — Exact Match to Screenshot 2 + FREETING Unlimited & Accessibility Telemetry */}
       <header className="h-14 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-[#e3e3e3]">{clockText}</span>
@@ -578,26 +697,38 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             type="button"
             onClick={() => setShowReadyCard((v) => !v)}
             title="Detalhes e link da reunião"
+            aria-label="Exibir ou ocultar cartão de detalhes da sala"
             className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
           >
             <Info className="w-4 h-4" />
           </button>
 
-          {/* Unlimited Duration Pill — Demonstrates no 60-min limit */}
+          {/* Unlimited Duration Pill */}
           <div
             title="Sem limite de 60 minutos! Clique em +1h para testar reuniões de longa duração."
             className="hidden sm:flex items-center gap-2 bg-[#1e3a2f]/90 border border-[#34a853]/40 text-[#81c995] rounded-full px-3 py-1 text-xs font-medium"
           >
             <Clock className="w-3.5 h-3.5" />
-            <span className="font-mono">{formatUnlimitedDuration(elapsedSeconds)}</span>
+            <span className="font-mono">
+              {formatUnlimitedDuration(elapsedSeconds)}
+            </span>
             <span>• ∞ Sem Limite</span>
             <button
               type="button"
-              onClick={() => setElapsedSeconds((s) => s + 3600)}
+              onClick={() => {
+                setElapsedSeconds((s) => s + 3600);
+                announce("Simulando mais 1 hora de reunião sem corte.");
+              }}
               className="ml-1 bg-[#34a853]/30 hover:bg-[#34a853]/50 text-white px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer"
             >
               +1h
             </button>
+          </div>
+
+          {/* Network & Database Sync Badge */}
+          <div className="hidden xl:flex items-center gap-1.5 bg-[#282a2c] text-[#c4c7c5] rounded-full px-3 py-1 text-[11px]">
+            <Wifi className="w-3.5 h-3.5 text-[#81c995]" />
+            <span>P2P HD • 14ms • SQLite Sync</span>
           </div>
 
           {/* Active Unlimited Recording Pill */}
@@ -614,7 +745,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               <button
                 type="button"
                 onClick={handlePauseResumeRecording}
-                title={recordingSession.state === "PAUSED" ? "Retomar" : "Pausar"}
+                title={
+                  recordingSession.state === "PAUSED" ? "Retomar" : "Pausar"
+                }
                 className="p-0.5 hover:text-white cursor-pointer"
               >
                 {recordingSession.state === "PAUSED" ? (
@@ -635,8 +768,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           )}
         </div>
 
-        {/* Right Top Controls: Add Simulated Peer + Participant Count Badge + Studio Edit Button */}
-        <div className="flex items-center gap-2.5">
+        {/* Right Top Controls */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleAddSimulatedParticipant}
@@ -646,11 +779,45 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <span>+ Simular Participante</span>
           </button>
 
+          {/* High Contrast Accessibility Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              setHighContrastMode((v) => !v);
+              announce(
+                !highContrastMode
+                  ? "Alto contraste ativado"
+                  : "Alto contraste desativado"
+              );
+            }}
+            title="Alternar Modo Alto Contraste (Acessibilidade WCAG AAA)"
+            aria-label="Alternar Alto Contraste"
+            className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
+              highContrastMode
+                ? "bg-yellow-400 text-black"
+                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#c4c7c5]"
+            }`}
+          >
+            <Contrast className="w-4 h-4" />
+          </button>
+
+          {/* Keyboard Shortcuts Helper Button */}
+          <button
+            type="button"
+            onClick={() => setShowShortcutsModal(true)}
+            title="Atalhos de Teclado e Acessibilidade (?)"
+            aria-label="Abrir guia de atalhos de teclado"
+            className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+
           <button
             type="button"
             onClick={() =>
               setActiveDrawer((d) => (d === "people" ? null : "people"))
             }
+            aria-label={`Participantes na sala: ${participants.length}`}
             className="flex items-center gap-2 bg-[#282a2c] hover:bg-[#3c4043] rounded-full pl-1.5 pr-3 py-1 cursor-pointer"
           >
             <div className="w-6 h-6 rounded-full bg-[#0b57d0] text-white text-xs font-bold flex items-center justify-center">
@@ -667,6 +834,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               setActiveDrawer((d) => (d === "activities" ? null : "activities"))
             }
             title="Efeitos e Gravações Ilimitadas"
+            aria-label="Atividades e gravações"
             className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
@@ -679,113 +847,139 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         {/* Video Stage Grid */}
         <div
           className={`flex-1 grid gap-3 h-full ${
-            participants.length === 1
+            layoutMode === "spotlight" || participants.length === 1
               ? "grid-cols-1"
               : participants.length === 2
               ? "grid-cols-1 md:grid-cols-2"
               : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
           }`}
         >
-          {participants.map((participant) => (
-            <div
-              key={participant.id}
-              className="bg-[#1b3a6b] rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group border border-white/5"
-            >
-              {/* Top-Right Muted Badge — Matching Screenshot 2 */}
-              <div className="absolute top-3.5 right-3.5 z-10">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                    participant.isMuted
-                      ? "bg-[#172b4d]/80 text-[#8ab4f8]"
-                      : "bg-[#137333]/80 text-white"
-                  }`}
-                >
-                  {participant.isMuted ? (
-                    <MicOff className="w-3.5 h-3.5" />
-                  ) : (
-                    <Mic className="w-3.5 h-3.5" />
-                  )}
-                </div>
-              </div>
-
-              {/* Raised Hand Badge */}
-              {participant.isHandRaised && (
-                <div className="absolute top-3.5 left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md">
-                  <Hand className="w-3.5 h-3.5" />
-                  Mão levantada
-                </div>
-              )}
-
-              {/* Live Video or Centered Avatar with Hover Pill (Exact Match to Screenshot 2) */}
-              {participant.isLocal && (!isCameraOff || isScreenSharing) ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="relative flex items-center justify-center">
-                  {/* Avatar Circle */}
+          {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
+            (participant) => (
+              <div
+                key={participant.id}
+                className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
+                  highContrastMode
+                    ? "bg-[#0a192f] border-2 border-yellow-400"
+                    : "bg-[#1b3a6b] border border-white/10"
+                }`}
+              >
+                {/* Top-Right Mic Status / Equalizer Badge — Matching Screenshot 2 */}
+                <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1.5">
                   <div
-                    style={{ backgroundColor: participant.avatarColor }}
-                    className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg transition-transform ${
-                      !participant.isMuted ? "ring-4 ring-[#8ab4f8]/60" : ""
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      participant.isMuted
+                        ? "bg-[#172b4d]/80 text-[#8ab4f8]"
+                        : "bg-[#137333]/90 text-white"
                     }`}
                   >
-                    {participant.name.charAt(0).toUpperCase()}
+                    {participant.isMuted ? (
+                      <MicOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <div className="flex items-end gap-0.5 h-3">
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
+                      </div>
+                    )}
                   </div>
+                </div>
 
-                  {/* Center Hover Action Pill across Avatar — Exact match to Screenshot 2 */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-[#202124]/75 hover:bg-[#202124]/95 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
-                            document.documentElement.requestFullscreen().catch(() => {});
+                {/* Raised Hand Badge */}
+                {participant.isHandRaised && (
+                  <div className="absolute top-3.5 left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md">
+                    <Hand className="w-3.5 h-3.5" />
+                    Mão levantada
+                  </div>
+                )}
+
+                {/* Live Video or Centered Avatar with Hover Pill */}
+                {participant.isLocal && (!isCameraOff || isScreenSharing) ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="relative flex items-center justify-center">
+                    <div
+                      style={{ backgroundColor: participant.avatarColor }}
+                      className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg transition-transform ${
+                        !participant.isMuted
+                          ? "ring-4 ring-[#8ab4f8]/70 scale-105"
+                          : ""
+                      }`}
+                    >
+                      {participant.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Center Hover Action Pill across Avatar */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-[#202124]/75 hover:bg-[#202124]/95 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (
+                              typeof document !== "undefined" &&
+                              document.documentElement.requestFullscreen
+                            ) {
+                              document.documentElement
+                                .requestFullscreen()
+                                .catch(() => {});
+                            }
+                          }}
+                          title="Tela cheia"
+                          aria-label="Alternar tela cheia"
+                          className="hover:text-white cursor-pointer"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLayoutMode((m) =>
+                              m === "spotlight" ? "auto" : "spotlight"
+                            )
                           }
-                        }}
-                        title="Tela cheia"
-                        className="hover:text-white cursor-pointer"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Fixar na tela principal"
-                        className="hover:text-white cursor-pointer"
-                      >
-                        <Pin className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowMoreMenu((v) => !v)}
-                        title="Mais opções"
-                        className="hover:text-white cursor-pointer"
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
+                          title="Fixar em destaque"
+                          aria-label="Fixar participante na tela principal"
+                          className="hover:text-white cursor-pointer"
+                        >
+                          <Pin className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreMenu((v) => !v)}
+                          title="Mais opções"
+                          aria-label="Mais opções do participante"
+                          className="hover:text-white cursor-pointer"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Bottom-left Participant Nameplate (shown when multiple peers or speaking) */}
-              {participants.length > 1 && (
-                <div className="absolute bottom-3 left-3.5 bg-black/50 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
-                  <span>{participant.name}</span>
-                  {participant.isSimulated && (
-                    <span className="text-[10px] text-[#8ab4f8]">• WebRTC Bot</span>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Bottom-left Participant Nameplate */}
+                {participants.length > 1 && (
+                  <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
+                    <span>{participant.name}</span>
+                    {participant.isSimulated && (
+                      <span className="text-[10px] text-[#8ab4f8]">
+                        • WebRTC Bot
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          )}
         </div>
 
-        {/* FLOATING OVERLAY: "Sua reunião está pronta" + Teal Portuguese AI Card (Screenshot 2) */}
+        {/* FLOATING OVERLAY: "Sua reunião está pronta" + Teal Portuguese AI Card */}
         {showReadyCard && (
           <div className="absolute bottom-3 left-6 z-30 w-[320px] flex flex-col">
             <div className="bg-white text-[#1f1f1f] rounded-2xl p-5 shadow-2xl">
@@ -813,17 +1007,19 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               </button>
 
               <p className="text-xs text-[#444746] leading-relaxed mb-2.5">
-                Ou compartilhe este link da reunião com quem você quer que participe
+                Ou compartilhe este link da reunião com quem você quer que
+                participe
               </p>
 
               <div className="bg-[#f1f3f4] rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs text-[#1f1f1f] truncate font-mono">
-                  { `meet.google.com/${roomCode}` }
+                  {`meet.google.com/${roomCode}`}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyRoomLink}
                   title="Copiar link da reunião"
+                  aria-label="Copiar link da reunião"
                   className="text-[#444746] hover:text-[#1f1f1f] cursor-pointer shrink-0"
                 >
                   {copiedLink ? (
@@ -835,7 +1031,6 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               </div>
             </div>
 
-            {/* Attached Teal Tooltip Card: "Novo: Já disponível em Português" (Screenshot 2) */}
             {showPtToastCard && (
               <div className="bg-[#004a77] text-white rounded-2xl p-4 shadow-2xl -mt-3 mx-1 relative border border-[#00639b]">
                 <div className="flex items-center justify-between mb-1.5">
@@ -857,10 +1052,10 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                   </button>
                 </div>
                 <p className="text-[11px] text-[#e1f5fe] leading-relaxed">
-                  Agora você pode fazer perguntas à IA em Português, receber resumos de discussões e gravar reuniões{" "}
+                  Agora você pode fazer perguntas à IA em Português, receber
+                  resumos de discussões e gravar reuniões{" "}
                   <strong className="underline">sem limite de 1 hora</strong>.
                 </p>
-                {/* Downward pointer triangle matching Screenshot 2 */}
                 <div className="w-3 h-3 bg-[#004a77] rotate-45 absolute -bottom-1.5 left-10 border-r border-b border-[#00639b]" />
               </div>
             )}
@@ -886,29 +1081,34 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         {/* LIVE CAPTIONS OVERLAY (CC) */}
         {isCaptionsOn && captions.length > 0 && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-4 pointer-events-none">
-            <div className="bg-black/80 backdrop-blur-xs border border-white/10 rounded-2xl px-5 py-3 text-sm text-white shadow-xl">
+            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-5 py-3 text-sm text-white shadow-xl">
               <div className="text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
-                {captions[captions.length - 1].speakerName} • Legendas ao Vivo (Português)
+                {captions[captions.length - 1].speakerName} • Legendas ao Vivo
+                (Português)
               </div>
               <div>{captions[captions.length - 1].text}</div>
             </div>
           </div>
         )}
 
-        {/* RIGHT SIDE DRAWER (People / Chat / AI Notes / Unlimited Recordings / Security) */}
+        {/* RIGHT SIDE DRAWER */}
         {activeDrawer && (
           <aside className="w-80 sm:w-96 bg-[#1e1f20] border border-[#3c4043] rounded-2xl flex flex-col overflow-hidden shrink-0 z-30">
             <div className="px-5 py-4 border-b border-[#3c4043] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                {activeDrawer === "people" && `Pessoas (${participants.length})`}
+                {activeDrawer === "people" &&
+                  `Pessoas (${participants.length})`}
                 {activeDrawer === "chat" && "Mensagens na chamada"}
-                {activeDrawer === "ai" && "Assistente IA FREETING (Português)"}
-                {activeDrawer === "activities" && "Gravações Ilimitadas (∞) & Ata"}
+                {activeDrawer === "ai" &&
+                  "Assistente IA FREETING (Português)"}
+                {activeDrawer === "activities" &&
+                  "Gravações Ilimitadas (∞) & Ata"}
                 {activeDrawer === "security" && "Controles do Organizador"}
               </h3>
               <button
                 type="button"
                 onClick={() => setActiveDrawer(null)}
+                aria-label="Fechar painel lateral"
                 className="p-1 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -940,9 +1140,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                             {p.name.charAt(0)}
                           </div>
                           <div>
-                            <div className="font-medium text-white">{p.name}</div>
+                            <div className="font-medium text-white">
+                              {p.name}
+                            </div>
                             <div className="text-[11px] text-[#9aa0a6]">
-                              {p.role === "HOST" ? "Organizador da reunião" : "Participante conectado"}
+                              {p.role === "HOST"
+                                ? "Organizador da reunião"
+                                : "Participante conectado"}
                             </div>
                           </div>
                         </div>
@@ -968,7 +1172,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                           </span>
                           <span>{m.timestamp}</span>
                         </div>
-                        <p className="text-[#e3e3e3] leading-relaxed">{m.text}</p>
+                        <p className="text-[#e3e3e3] leading-relaxed">
+                          {m.text}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -993,13 +1199,17 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               {activeDrawer === "ai" && (
                 <div className="space-y-3">
                   <div className="bg-[#004a77]/60 border border-[#00639b] rounded-xl p-3 text-[#c2e7ff]">
-                    Faça perguntas ao Assistente IA sobre a discussão ou gere a ata completa sem limite de tempo.
+                    Faça perguntas ao Assistente IA sobre a discussão ou gere a
+                    ata completa sem limite de tempo.
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
                       onClick={() =>
-                        handleSendAiPrompt(undefined, "Resuma a discussão até agora")
+                        handleSendAiPrompt(
+                          undefined,
+                          "Resuma a discussão até agora"
+                        )
                       }
                       className="bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] px-3 py-1.5 rounded-full text-[11px] cursor-pointer"
                     >
@@ -1037,7 +1247,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                       Gravação Ilimitada em Chunks (Sem corte de 1h)
                     </div>
                     <p className="text-[11px] text-[#e3e3e3]">
-                      Grave horas seguidas com persistência automática no IndexedDB e download direto em WebM.
+                      Grave horas seguidas com persistência automática no
+                      IndexedDB e download direto em WebM.
                     </p>
                     {!recordingSession ? (
                       <button
@@ -1053,7 +1264,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                         onClick={handleStopAndDownloadRecording}
                         className="w-full py-2 rounded-full bg-[#f28b82] text-[#601410] font-semibold cursor-pointer"
                       >
-                        ■ Parar e Baixar Gravação ({formatUnlimitedDuration(activeRecDurationSec)})
+                        ■ Parar e Baixar Gravação (
+                        {formatUnlimitedDuration(activeRecDurationSec)})
                       </button>
                     )}
                   </div>
@@ -1077,7 +1289,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                         className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between"
                       >
                         <div>
-                          <div className="font-medium text-white">{rec.roomCode}</div>
+                          <div className="font-medium text-white">
+                            {rec.roomCode}
+                          </div>
                           <div className="text-[10px] text-[#9aa0a6]">
                             {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
                             {formatRecordingBytes(rec.totalBytes)}
@@ -1111,7 +1325,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                 <div className="space-y-3">
                   <div className="p-3 rounded-xl bg-[#282a2c] flex items-center justify-between">
                     <div>
-                      <div className="font-medium text-white">Bloquear entrada na sala</div>
+                      <div className="font-medium text-white">
+                        Bloquear entrada na sala
+                      </div>
                       <div className="text-[11px] text-[#9aa0a6]">
                         Exigir aprovação do organizador
                       </div>
@@ -1124,7 +1340,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                     />
                   </div>
                   <div className="p-3 rounded-xl bg-[#1e3a2f] text-[#81c995]">
-                    ✓ Política Sem Limite ativa: Esta sala nunca será desconectada após 60 minutos.
+                    ✓ Política Sem Limite ativa: Esta sala nunca será
+                    desconectada após 60 minutos.
                   </div>
                 </div>
               )}
@@ -1135,7 +1352,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
       {/* BOTTOM CONTROL BAR — Faithful to Screenshot 2 */}
       <footer className="h-20 px-5 flex items-center justify-between gap-4 shrink-0 relative">
-        {/* Left: "Pedir para ... Somente você ↑" AI Prompt Bar (Exact match to Screenshot 2) */}
+        {/* Left: "Pedir para ... Somente você ↑" AI Prompt Bar */}
         <form
           onSubmit={handleSendAiPrompt}
           className="hidden lg:flex items-center bg-[#282a2c] hover:bg-[#323537] border border-[#3c4043] rounded-full h-12 pl-4 pr-2 w-[310px] justify-between transition-colors"
@@ -1166,14 +1383,19 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           </div>
         </form>
 
-        {/* Center: Main Media Controls Pill Group — Exact Match to Screenshot 2 */}
-        <div className="flex items-center gap-2 mx-auto">
-          {/* 1. Split Microphone Pill with Yellow Status Badge */}
+        {/* Center: Main Media Controls Pill Group */}
+        <div
+          role="toolbar"
+          aria-label="Controles de mídia e gravação da reunião"
+          className="flex items-center gap-2 mx-auto"
+        >
+          {/* 1. Split Microphone Pill */}
           <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
             <button
               type="button"
               onClick={handleToggleMic}
-              title="Selecionar microfone"
+              title="Opções de microfone (Alt+M)"
+              aria-label="Opções de microfone"
               className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
             >
               <ChevronUp className="w-3.5 h-3.5" />
@@ -1181,7 +1403,12 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <button
               type="button"
               onClick={handleToggleMic}
-              aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
+              aria-pressed={!isMuted}
+              aria-label={
+                isMuted
+                  ? "Ativar microfone (Alt+M)"
+                  : "Desativar microfone (Alt+M)"
+              }
               className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 isMuted
                   ? "bg-[#3c4043] text-white hover:bg-[#4e5256]"
@@ -1201,12 +1428,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             )}
           </div>
 
-          {/* 2. Split Camera Pill with Yellow Status Badge */}
+          {/* 2. Split Camera Pill */}
           <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
             <button
               type="button"
               onClick={handleToggleCamera}
-              title="Selecionar câmera"
+              title="Opções de câmera (Alt+V)"
+              aria-label="Opções de câmera"
               className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
             >
               <ChevronUp className="w-3.5 h-3.5" />
@@ -1214,7 +1442,12 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <button
               type="button"
               onClick={handleToggleCamera}
-              aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
+              aria-pressed={!isCameraOff}
+              aria-label={
+                isCameraOff
+                  ? "Ativar câmera (Alt+V)"
+                  : "Desativar câmera (Alt+V)"
+              }
               className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 isCameraOff
                   ? "bg-[#3c4043] text-white hover:bg-[#4e5256]"
@@ -1234,11 +1467,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             )}
           </div>
 
-          {/* 3. Screen Share ("Apresentar agora") */}
+          {/* 3. Screen Share */}
           <button
             type="button"
             onClick={handleToggleScreenShare}
+            aria-pressed={isScreenSharing}
             title="Apresentar agora (Compartilhar tela)"
+            aria-label="Compartilhar tela"
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               isScreenSharing
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1248,9 +1483,10 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <MonitorUp className="w-5 h-5" />
           </button>
 
-          {/* 4. Unlimited Recorder Button ("Gravar sem limite de 1h") */}
+          {/* 4. Unlimited Recorder Button ("Gravar ∞") */}
           <button
             type="button"
+            aria-pressed={!!recordingSession}
             onClick={() => {
               if (!recordingSession) {
                 handleStartUnlimitedRecording();
@@ -1260,8 +1496,8 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             }}
             title={
               recordingSession
-                ? "Parar e baixar gravação ilimitada (.webm)"
-                : "Iniciar Gravação Ilimitada (Sem corte de 1 hora)"
+                ? "Parar e baixar gravação ilimitada (.webm) (Alt+R)"
+                : "Iniciar Gravação Ilimitada (Sem corte de 1 hora) (Alt+R)"
             }
             className={`h-11 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
               recordingSession
@@ -1278,7 +1514,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <button
               type="button"
               onClick={() => setShowReactionBar((v) => !v)}
+              aria-expanded={showReactionBar}
               title="Enviar reação"
+              aria-label="Enviar reação com emoji"
               className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 showReactionBar
                   ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1315,7 +1553,9 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           <button
             type="button"
             onClick={handleToggleCaptions}
-            title="Ativar legendas em Português (CC)"
+            aria-pressed={isCaptionsOn}
+            title="Ativar legendas em Português (CC) (Alt+C)"
+            aria-label="Alternar legendas ao vivo em Português"
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               isCaptionsOn
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1328,16 +1568,19 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           {/* 7. Raise Hand */}
           <button
             type="button"
+            aria-pressed={isHandRaised}
             onClick={() => {
               const next = !isHandRaised;
               setIsHandRaised(next);
+              announce(next ? "Mão levantada" : "Mão abaixada");
               setParticipants((prev) =>
                 prev.map((p) =>
                   p.isLocal ? { ...p, isHandRaised: next } : p
                 )
               );
             }}
-            title="Levantar a mão"
+            title="Levantar a mão (Alt+H)"
+            aria-label="Levantar ou abaixar a mão"
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               isHandRaised
                 ? "bg-[#fbbc04] text-[#1f1f1f]"
@@ -1353,6 +1596,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               type="button"
               onClick={() => setShowMoreMenu((v) => !v)}
               title="Mais opções"
+              aria-label="Mais opções da sala"
               className="w-11 h-11 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3] flex items-center justify-center cursor-pointer"
             >
               <MoreVertical className="w-5 h-5" />
@@ -1397,6 +1641,17 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                   type="button"
                   onClick={() => {
                     setShowMoreMenu(false);
+                    setShowShortcutsModal(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                >
+                  <Keyboard className="w-4 h-4 text-[#a8c7fa]" />
+                  <span>Atalhos de Teclado e Acessibilidade</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreMenu(false);
                     handleExportMarkdownMinutes();
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
@@ -1408,7 +1663,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             )}
           </div>
 
-          {/* 9. End Call Wide Red Pill Button — Exact Match to Screenshot 2 */}
+          {/* 9. End Call Wide Red Pill Button */}
           <button
             type="button"
             onClick={handleEndCall}
@@ -1420,7 +1675,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           </button>
         </div>
 
-        {/* Right: Chat, Activities/Grid, Security Lock Pill — Exact Match to Screenshot 2 */}
+        {/* Right: Chat, Activities/Grid, Security Lock Pill */}
         <div className="flex items-center bg-[#1e1f20] border border-[#3c4043]/60 rounded-full px-3 h-11 gap-2">
           <button
             type="button"
@@ -1428,6 +1683,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               setActiveDrawer((d) => (d === "chat" ? null : "chat"))
             }
             title="Chat da reunião"
+            aria-label="Abrir chat da reunião"
             className={`p-2 rounded-full transition-colors cursor-pointer ${
               activeDrawer === "chat"
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1442,6 +1698,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               setActiveDrawer((d) => (d === "activities" ? null : "activities"))
             }
             title="Atividades e Cofre de Gravações Ilimitadas"
+            aria-label="Abrir cofre de gravações ilimitadas"
             className={`p-2 rounded-full transition-colors cursor-pointer ${
               activeDrawer === "activities"
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1456,6 +1713,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               setActiveDrawer((d) => (d === "security" ? null : "security"))
             }
             title="Controles de segurança do organizador"
+            aria-label="Controles de segurança"
             className={`p-2 rounded-full transition-colors cursor-pointer ${
               activeDrawer === "security"
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -1466,6 +1724,66 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           </button>
         </div>
       </footer>
+
+      {/* MODAL: Atalhos de Teclado & Acessibilidade WCAG */}
+      {showShortcutsModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"
+        >
+          <div className="bg-[#1e1f20] border border-[#3c4043] text-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Keyboard className="w-5 h-5 text-[#a8c7fa]" />
+                Atalhos de Teclado & Acessibilidade
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowShortcutsModal(false)}
+                className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[
+                { key: "Alt + M", action: "Ativar / Desativar Microfone" },
+                { key: "Alt + V", action: "Ativar / Desativar Câmera" },
+                {
+                  key: "Alt + R",
+                  action: "Iniciar / Parar Gravação Ilimitada (REC ∞)",
+                },
+                {
+                  key: "Alt + C",
+                  action: "Ativar / Desativar Legendas em Português (CC)",
+                },
+                { key: "Alt + H", action: "Levantar / Abaixar a Mão" },
+                { key: "?", action: "Abrir este Guia de Acessibilidade" },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#282a2c]"
+                >
+                  <span className="text-[#e3e3e3]">{item.action}</span>
+                  <kbd className="bg-[#131314] border border-[#3c4043] px-2.5 py-1 rounded-lg font-mono text-[#a8c7fa]">
+                    {item.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowShortcutsModal(false)}
+                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-xs font-semibold cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
