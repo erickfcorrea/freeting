@@ -15,7 +15,6 @@ import {
   Link2,
   Plus,
   Clock,
-  Infinity as InfinityIcon,
   Disc,
   Copy,
   Check,
@@ -24,14 +23,10 @@ import {
   X,
   Mic,
   Camera,
-  Database,
   Sun,
   Moon,
   Contrast,
-  Globe,
   Accessibility,
-  CheckCircle2,
-  ExternalLink,
   Play,
 } from "lucide-react";
 import {
@@ -61,35 +56,27 @@ import {
 import { FreetingEmptyIllustration } from "./FreetingEmptyIllustration";
 import { MeetingRoomView } from "../room/MeetingRoomView";
 
-const STORAGE_MEETINGS_KEY = "freeting_scheduled_meetings_v1";
-const PUBLIC_HOSTED_URL = "https://erickfcorrea.github.io/freeting/";
+const STORAGE_MEETINGS_KEY = "freeting_scheduled_meetings_v2";
 
 export type HomeThemeMode = "light" | "dark" | "high-contrast";
 
 export function FreetingHomeDashboard() {
-  // Instant Client-Side Room Routing (Works 100% on GitHub Pages static hosting AND localhost!)
   const [activeRoomCode, setActiveRoomCode] = useState<string | null>(null);
 
-  // Reference default date ("seg., 23 de nov.")
   const [selectedDate, setSelectedDate] = useState<Date>(
     () => new Date(2026, 10, 23, 12, 0, 0)
   );
   const [joinInput, setJoinInput] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState<
-    "meetings" | "calls" | "recordings" | "cloud"
+    "meetings" | "calls" | "recordings"
   >("meetings");
 
   // UI/UX Theme & Accessibility State
   const [theme, setTheme] = useState<HomeThemeMode>("light");
   const [fontScale, setFontScale] = useState<100 | 110 | 120>(100);
   const [a11yAnnouncement, setA11yAnnouncement] = useState(
-    "Painel inicial do FREETING carregado. Reuniões e gravações sem limite de 1 hora."
-  );
-
-  // Database Engine Telemetry
-  const [dbEngineStatus, setDbEngineStatus] = useState<string>(
-    "SQLite + IndexedDB"
+    "Painel inicial do FREETING carregado."
   );
 
   // Dropdown & Modals
@@ -100,7 +87,6 @@ export function FreetingHomeDashboard() {
   const [showAiNotesModal, setShowAiNotesModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showDbHostingModal, setShowDbHostingModal] = useState(false);
   const [previewRecordingUrl, setPreviewRecordingUrl] = useState<{
     url: string;
     title: string;
@@ -111,7 +97,7 @@ export function FreetingHomeDashboard() {
   const [newStartTime, setNewStartTime] = useState("19:00");
   const [newDescription, setNewDescription] = useState("");
 
-  // Persisted Meetings & Recordings
+  // Meetings & Recordings
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
   const [recordings, setRecordings] = useState<StoredRecordingMeta[]>([]);
 
@@ -119,7 +105,6 @@ export function FreetingHomeDashboard() {
     setA11yAnnouncement(msg);
   };
 
-  // Detect room code from URL query (?room=xxx) or pathname (/room/xxx) on load and popstate
   useEffect(() => {
     const syncRoomFromUrl = () => {
       if (typeof window === "undefined") return;
@@ -151,7 +136,9 @@ export function FreetingHomeDashboard() {
   }, []);
 
   const enterRoom = useCallback((rawCode?: string) => {
-    const code = rawCode ? extractRoomCode(rawCode) || rawCode : generateRoomCode();
+    const code = rawCode
+      ? extractRoomCode(rawCode) || rawCode
+      : generateRoomCode();
     setShowNewMenu(false);
     setLaterRoomCode(null);
     setShowAiNotesModal(false);
@@ -181,7 +168,7 @@ export function FreetingHomeDashboard() {
     setRecordings(items);
   }, []);
 
-  const loadMeetingsHybrid = useCallback(async () => {
+  const loadMeetings = useCallback(async () => {
     let localItems: ScheduledMeeting[] = [];
     try {
       const raw = localStorage.getItem(STORAGE_MEETINGS_KEY);
@@ -197,57 +184,27 @@ export function FreetingHomeDashboard() {
       const res = await fetch("/api/meetings", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        if (data.databaseEngine) {
-          setDbEngineStatus(
-            data.databaseEngine === "node:sqlite"
-              ? "SQLite Nativo (WAL) + IndexedDB"
-              : "IndexedDB + Cloud Sync"
-          );
-        }
         if (Array.isArray(data.meetings) && data.meetings.length > 0) {
           const mergedMap = new Map<string, ScheduledMeeting>();
           localItems.forEach((m) => mergedMap.set(m.id, m));
-          data.meetings.forEach((m: ScheduledMeeting) => mergedMap.set(m.id, m));
+          data.meetings.forEach((m: ScheduledMeeting) =>
+            mergedMap.set(m.id, m)
+          );
           const merged = Array.from(mergedMap.values());
           setMeetings(merged);
           localStorage.setItem(STORAGE_MEETINGS_KEY, JSON.stringify(merged));
-          return;
         }
       }
     } catch {
-      setDbEngineStatus("IndexedDB Offline-First Ativo");
-    }
-
-    // Ensure at least 1 default seed meeting exists on static hosting if empty
-    if (localItems.length === 0) {
-      const seed: ScheduledMeeting = {
-        id: "seed_mtg_1",
-        title: "Sprint Review & Arquitetura FREETING (∞ Sem Limite)",
-        roomCode: "amd-wraw-qkg",
-        dateIso: "2026-11-23",
-        startTime: "19:00",
-        endTime: "∞ Sem Limite",
-        hostName: "Erick Correa",
-        status: "SCHEDULED",
-        aiNotesEnabled: true,
-        unlimitedRecordingEnabled: true,
-        description: "Sala oficial do FREETING sem limite de 60 minutos.",
-      };
-      setMeetings([seed]);
-      try {
-        localStorage.setItem(STORAGE_MEETINGS_KEY, JSON.stringify([seed]));
-      } catch {
-        // ignore
-      }
+      // Offline mode
     }
   }, []);
 
   useEffect(() => {
-    loadMeetingsHybrid();
+    loadMeetings();
     refreshRecordings();
-  }, [loadMeetingsHybrid, refreshRecordings]);
+  }, [loadMeetings, refreshRecordings]);
 
-  // Refresh recordings whenever returning from a room
   useEffect(() => {
     if (!activeRoomCode) {
       refreshRecordings();
@@ -272,7 +229,7 @@ export function FreetingHomeDashboard() {
           body: JSON.stringify(createdItem),
         });
       } catch {
-        // Offline / static hosting fallback already saved in localStorage
+        // Offline fallback
       }
     }
   };
@@ -288,14 +245,14 @@ export function FreetingHomeDashboard() {
     e?.preventDefault();
     if (!joinInput.trim()) {
       const instantCode = generateRoomCode();
-      announce(`Iniciando reunião instantânea na sala ${instantCode}`);
+      announce(`Iniciando reunião na sala ${instantCode}`);
       enterRoom(instantCode);
       return;
     }
     const extracted = extractRoomCode(joinInput);
     if (!extracted) {
       setJoinError(
-        "Digite um código válido (ex: amd-wraw-qkg) ou o nome da sala."
+        "Digite um código válido (ex: amd-wraw-qkg) ou cole o link da reunião."
       );
       announce("Erro: código de sala inválido.");
       return;
@@ -307,7 +264,7 @@ export function FreetingHomeDashboard() {
 
   const handleStartInstantMeeting = () => {
     const code = generateRoomCode();
-    announce(`Criando sala instantânea ${code}`);
+    announce(`Iniciando reunião instantânea ${code}`);
     enterRoom(code);
   };
 
@@ -316,7 +273,7 @@ export function FreetingHomeDashboard() {
     const code = generateRoomCode();
     setLaterRoomCode(code);
     setCopiedCode(false);
-    announce(`Link criado para reunião futura: ${code}`);
+    announce(`Link criado para reunião: ${code}`);
   };
 
   const handleOpenScheduleModal = () => {
@@ -332,24 +289,20 @@ export function FreetingHomeDashboard() {
     const code = generateRoomCode();
     const created: ScheduledMeeting = {
       id: `mtg_${Date.now()}`,
-      title: newTitle.trim() || "Reunião Sem Limite FREETING",
+      title: newTitle.trim() || "Reunião FREETING",
       roomCode: code,
       dateIso: selectedDateIso,
       startTime: newStartTime,
-      endTime: "∞ Sem Limite",
+      endTime: "",
       hostName: "Erick Correa",
       status: "SCHEDULED",
       aiNotesEnabled: true,
       unlimitedRecordingEnabled: true,
-      description:
-        newDescription.trim() ||
-        "Tempo de reunião e gravação 100% ilimitados.",
+      description: newDescription.trim() || "",
     };
     await persistMeetings([...meetings, created], created);
     setShowScheduleModal(false);
-    announce(
-      `Reunião ${created.title} salva no banco de dados para ${created.startTime}.`
-    );
+    announce(`Reunião ${created.title} agendada para ${created.startTime}.`);
   };
 
   const handleDeleteMeeting = async (id: string) => {
@@ -408,10 +361,9 @@ export function FreetingHomeDashboard() {
   const handleDeleteRecording = async (sessionId: string) => {
     await deleteRecordingFromVault(sessionId);
     await refreshRecordings();
-    announce("Gravação excluída do cofre local.");
+    announce("Gravação excluída.");
   };
 
-  // IF USER ENTERED A ROOM, RENDER THE ACTIVE MEETING ROOM DIRECTLY (ZERO 404 ON STATIC OR SERVER!)
   if (activeRoomCode) {
     return (
       <MeetingRoomView
@@ -444,7 +396,6 @@ export function FreetingHomeDashboard() {
         if (showNewMenu) setShowNewMenu(false);
       }}
     >
-      {/* WCAG Skip Link */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-[#0b57d0] focus:text-white focus:px-4 focus:py-2 focus:rounded-full focus:text-sm focus:font-semibold"
@@ -452,12 +403,11 @@ export function FreetingHomeDashboard() {
         Pular para o conteúdo principal
       </a>
 
-      {/* ARIA Live Status Region */}
       <div role="status" aria-live="polite" className="sr-only">
         {a11yAnnouncement}
       </div>
 
-      {/* TOP HEADER BAR */}
+      {/* TOP HEADER BAR — Clean & Faithful */}
       <header
         role="banner"
         className={`h-16 px-4 flex items-center justify-between border-b select-none ${
@@ -468,8 +418,8 @@ export function FreetingHomeDashboard() {
             : "border-transparent"
         }`}
       >
-        {/* Left: Monumental Neo-Classical Serif FREETING Wordmark Logo */}
-        <div className="flex items-center gap-3 min-w-[200px]">
+        {/* Left: Clean FREETING Wordmark Logo */}
+        <div className="flex items-center min-w-[160px]">
           <svg
             width="175"
             height="32"
@@ -510,17 +460,6 @@ export function FreetingHomeDashboard() {
               <path d="M816 26 C832 26 844 30 854 34 L856 56 H850 C845 41 833 33 816 33 C792 33 777 51 777 80 C777 109 793 127 818 127 C827 127 834 125 838 122 V96 C838 88 834 85 823 84 V79 H864 V84 C857 85 855 88 855 95 V125 C844 131 831 134 816 134 C781 134 757 112 757 80 C757 47 782 26 816 26 Z" />
             </g>
           </svg>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowDbHostingModal(true)}
-              title="Banco de Dados SQLite + Hospedagem Gratuita Ativa"
-              className="hidden xl:inline-flex items-center gap-1.5 text-[11px] font-semibold bg-[#e6f4ea] text-[#137333] hover:bg-[#ceead6] px-2.5 py-1 rounded-full border border-[#ceead6] transition-colors cursor-pointer"
-            >
-              <InfinityIcon className="w-3.5 h-3.5" />
-              <span>Sem Limites • {dbEngineStatus}</span>
-            </button>
-          </div>
         </div>
 
         {/* Center Action Bar: Code Input + Participar + Nova + Anotações IA */}
@@ -562,10 +501,12 @@ export function FreetingHomeDashboard() {
             />
             <button
               type="submit"
-              className={`ml-2 px-4 h-8 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
+              className={`ml-2 px-4 h-8 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                 joinInput.trim()
                   ? "bg-[#0b57d0] text-white hover:bg-[#0842a0]"
-                  : "bg-[#0b57d0] text-white hover:bg-[#0842a0]"
+                  : isDark
+                  ? "bg-[#3c4043] text-[#e3e3e3] hover:bg-[#4e5256]"
+                  : "bg-[#e0e2e5] text-[#5f6368] hover:bg-[#d2d5d9] hover:text-[#1f1f1f]"
               }`}
             >
               Participar
@@ -593,22 +534,6 @@ export function FreetingHomeDashboard() {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={handleStartInstantMeeting}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 text-[#137333]" />
-                  <div>
-                    <div className="font-semibold">
-                      Iniciar uma reunião instantânea
-                    </div>
-                    <div className="text-xs text-[#137333] font-medium">
-                      Entrar agora • Gravação ∞ liberada
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
                   onClick={handleCreateMeetingForLater}
                   className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
                 >
@@ -617,8 +542,18 @@ export function FreetingHomeDashboard() {
                     <div className="font-medium">
                       Criar uma reunião para depois
                     </div>
-                    <div className="text-xs opacity-75">
-                      Gere um link sem limite de tempo
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleStartInstantMeeting}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-[#137333]" />
+                  <div>
+                    <div className="font-medium">
+                      Iniciar uma reunião instantânea
                     </div>
                   </div>
                 </button>
@@ -630,10 +565,7 @@ export function FreetingHomeDashboard() {
                 >
                   <Calendar className="w-4 h-4 text-[#0b57d0]" />
                   <div>
-                    <div className="font-medium">Agendar no Banco SQLite</div>
-                    <div className="text-xs opacity-75">
-                      Salvar no calendário semanal
-                    </div>
+                    <div className="font-medium">Agendar na agenda</div>
                   </div>
                 </button>
               </div>
@@ -652,7 +584,7 @@ export function FreetingHomeDashboard() {
         </div>
 
         {/* Right Icons */}
-        <div className="flex items-center gap-1.5 min-w-[210px] justify-end">
+        <div className="flex items-center gap-1.5 min-w-[160px] justify-end">
           <button
             type="button"
             onClick={() => {
@@ -663,18 +595,9 @@ export function FreetingHomeDashboard() {
                   ? "high-contrast"
                   : "light";
               setTheme(nextTheme);
-              announce(
-                `Tema alterado para ${
-                  nextTheme === "light"
-                    ? "Modo Claro"
-                    : nextTheme === "dark"
-                    ? "Modo Escuro"
-                    : "Alto Contraste Acessível"
-                }`
-              );
             }}
-            aria-label="Alternar tema visual e alto contraste"
-            title="Alternar tema: Claro / Escuro / Alto Contraste (WCAG AAA)"
+            aria-label="Alternar tema visual"
+            title="Alternar tema: Claro / Escuro / Alto Contraste"
             className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
           >
             {theme === "light" && <Sun className="w-5 h-5 text-[#5f6368]" />}
@@ -690,10 +613,9 @@ export function FreetingHomeDashboard() {
               const nextScale =
                 fontScale === 100 ? 110 : fontScale === 110 ? 120 : 100;
               setFontScale(nextScale);
-              announce(`Tamanho da fonte ajustado para ${nextScale}%`);
             }}
-            aria-label="Ajustar tamanho da fonte para acessibilidade"
-            title={`Acessibilidade: Escala de Fonte (${fontScale}%)`}
+            aria-label="Ajustar tamanho da fonte"
+            title={`Tamanho da fonte (${fontScale}%)`}
             className="px-2.5 h-8 rounded-full border border-[#dadce0] dark:border-[#3c4043] text-xs font-bold hover:bg-[#0b57d0]/10 flex items-center gap-1 cursor-pointer"
           >
             <Accessibility className="w-3.5 h-3.5 text-[#0b57d0]" />
@@ -702,19 +624,9 @@ export function FreetingHomeDashboard() {
 
           <button
             type="button"
-            onClick={() => setShowDbHostingModal(true)}
-            title="Banco de Dados SQLite & Hospedagem Gratuita"
-            aria-label="Ver arquitetura de Banco de Dados e Domínio Gratuito"
-            className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center text-[#0b57d0] cursor-pointer"
-          >
-            <Database className="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowSecurityModal(true)}
-            title="Segurança e Recursos Sem Limite"
-            aria-label="Segurança e Recursos Sem Limite"
+            title="Ajuda"
+            aria-label="Ajuda"
             className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
           >
             <HelpCircle className="w-5 h-5" />
@@ -723,7 +635,7 @@ export function FreetingHomeDashboard() {
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            title="Configurações de Áudio, Vídeo e Gravação Ilimitada"
+            title="Configurações"
             aria-label="Configurações"
             className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
           >
@@ -731,7 +643,7 @@ export function FreetingHomeDashboard() {
           </button>
 
           <div
-            title="Erick Correa (Conta Ilimitada FREETING)"
+            title="Erick Correa"
             className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#0b57d0] to-[#137333] p-0.5 ml-1 cursor-pointer"
           >
             <div className="w-full h-full rounded-full bg-[#1a73e8] text-white text-sm font-semibold flex items-center justify-center">
@@ -810,30 +722,12 @@ export function FreetingHomeDashboard() {
             >
               <Disc className="w-4 h-4" />
             </div>
-            <span className="text-[11px] font-medium">Gravações ∞</span>
+            <span className="text-[11px] font-medium">Gravações</span>
             {recordings.length > 0 && (
               <span className="absolute -top-1 right-2 bg-[#0f5223] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 {recordings.length}
               </span>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveNav("cloud")}
-            aria-current={activeNav === "cloud" ? "page" : undefined}
-            className="flex flex-col items-center gap-1 group cursor-pointer"
-          >
-            <div
-              className={`w-14 h-8 rounded-full flex items-center justify-center transition-colors ${
-                activeNav === "cloud"
-                  ? "bg-[#d3e3fd] text-[#041e49]"
-                  : "opacity-75 group-hover:bg-[#0b57d0]/10"
-              }`}
-            >
-              <Globe className="w-4 h-4" />
-            </div>
-            <span className="text-[11px] font-medium">Domínio & DB</span>
           </button>
         </nav>
 
@@ -855,8 +749,8 @@ export function FreetingHomeDashboard() {
                     onClick={() =>
                       setSelectedDate(new Date(2026, 10, 23, 12, 0, 0))
                     }
-                    title="Voltar para seg., 23 de nov."
-                    aria-label="Voltar para a data de referência 23 de novembro"
+                    title="Calendário"
+                    aria-label="Voltar para a data atual"
                     className="p-1.5 rounded-full hover:bg-[#0b57d0]/10 opacity-80 cursor-pointer"
                   >
                     <Calendar className="w-4 h-4" />
@@ -919,9 +813,9 @@ export function FreetingHomeDashboard() {
                 </div>
               </div>
 
-              {/* Security & Unlimited Info Banner */}
+              {/* Clean Security Banner — Faithful to original design */}
               <div
-                className={`rounded-3xl px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 ${
+                className={`rounded-full px-5 py-3.5 flex items-center justify-between gap-4 mb-12 ${
                   isHC
                     ? "bg-black border-2 border-yellow-400 text-white"
                     : isDark
@@ -930,96 +824,27 @@ export function FreetingHomeDashboard() {
                 }`}
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-full bg-[#1a73e8] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-8 h-8 rounded-full bg-[#1a73e8] text-white flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div className="text-xs sm:text-[13px] leading-snug">
-                    <div className="font-semibold">
-                      Sua reunião está segura • Duração e Gravação 100% Sem
-                      Limites (∞)
-                    </div>
+                    <div className="font-semibold">Sua reunião está segura</div>
                     <div className="opacity-80">
                       As pessoas só podem participar de uma reunião se o
-                      organizador convidar ou permitir — sem corte de 60
-                      minutos.
+                      organizador convidar ou permitir
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleStartInstantMeeting}
-                    className="bg-[#0b57d0] hover:bg-[#0842a0] text-white rounded-full px-4 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    Entrar em Sala Agora
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSecurityModal(true)}
-                    className="bg-white text-[#1f1f1f] hover:bg-[#f1f3f4] border border-[#dadce0] rounded-full px-4 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    Saiba mais
-                  </button>
-                </div>
-              </div>
-
-              {/* Feature Cards Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
                 <button
                   type="button"
-                  onClick={handleStartInstantMeeting}
-                  className={`p-3.5 rounded-2xl flex items-center gap-3 text-left hover:border-[#137333] transition-colors cursor-pointer ${cardBgClass}`}
+                  onClick={() => setShowSecurityModal(true)}
+                  className="shrink-0 bg-white/80 hover:bg-white text-[#1f1f1f] border border-[#dadce0] rounded-full px-4 py-1.5 text-xs font-medium transition-colors cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[#e6f4ea] text-[#137333] flex items-center justify-center shrink-0">
-                    <InfinityIcon className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-semibold">
-                      Iniciar Sala Sem Limite (1h+)
-                    </div>
-                    <div className="opacity-70">
-                      Clique para abrir sala instantânea
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveNav("recordings");
-                    refreshRecordings();
-                  }}
-                  className={`p-3.5 rounded-2xl flex items-center gap-3 text-left hover:border-[#c5221f] transition-colors cursor-pointer ${cardBgClass}`}
-                >
-                  <div className="w-9 h-9 rounded-xl bg-[#fce8e6] text-[#c5221f] flex items-center justify-center shrink-0">
-                    <Disc className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-semibold">Gravador Chunked ∞</div>
-                    <div className="opacity-70">
-                      Salva em chunks de 1s no IndexedDB
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("cloud")}
-                  className={`p-3.5 rounded-2xl flex items-center gap-3 text-left hover:border-[#0b57d0] transition-colors cursor-pointer ${cardBgClass}`}
-                >
-                  <div className="w-9 h-9 rounded-xl bg-[#e8f0fe] text-[#0b57d0] flex items-center justify-center shrink-0">
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-semibold">SQLite + Domínio Grátis</div>
-                    <div className="opacity-70">
-                      Ver banco e URL pública ativa
-                    </div>
-                  </div>
+                  Saiba mais
                 </button>
               </div>
 
-              {/* Scheduled Meetings or Empty State Illustration */}
+              {/* Scheduled Meetings or Clean Empty State Illustration */}
               {todaysMeetings.length === 0 ? (
                 <div className="text-center pt-4 pb-10">
                   <FreetingEmptyIllustration />
@@ -1027,8 +852,7 @@ export function FreetingHomeDashboard() {
                     Nenhuma reunião agendada para hoje
                   </h2>
                   <p className="text-sm opacity-75 mt-1.5 mb-6">
-                    Agende uma reunião ou inicie uma sala instantânea sem limite
-                    de tempo
+                    Agende uma reunião ou aproveite seu tempo livre
                   </p>
                   <div className="flex items-center justify-center gap-3 flex-wrap">
                     <button
@@ -1037,15 +861,7 @@ export function FreetingHomeDashboard() {
                       className="h-11 px-6 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer"
                     >
                       <Video className="w-4 h-4" />
-                      <span>Iniciar Reunião Agora</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleOpenScheduleModal}
-                      className="h-11 px-5 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-medium inline-flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>Agendar no SQLite</span>
+                      <span>Nova</span>
                     </button>
                   </div>
                 </div>
@@ -1053,26 +869,16 @@ export function FreetingHomeDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wider opacity-75">
-                      Reuniões agendadas para este dia ({todaysMeetings.length})
+                      Reuniões agendadas ({todaysMeetings.length})
                     </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleStartInstantMeeting}
-                        className="text-xs font-semibold text-[#137333] hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Video className="w-3.5 h-3.5" />
-                        Iniciar reunião instantânea
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenScheduleModal}
-                        className="text-xs font-semibold text-[#0b57d0] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Agendar outra reunião
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenScheduleModal}
+                      className="text-xs font-semibold text-[#0b57d0] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Nova reunião
+                    </button>
                   </div>
 
                   {todaysMeetings.map((mtg) => (
@@ -1084,22 +890,16 @@ export function FreetingHomeDashboard() {
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <span className="text-xs font-semibold text-[#0b57d0] bg-[#e8f0fe] px-2.5 py-0.5 rounded-full flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
-                            {mtg.startTime} • {mtg.endTime}
-                          </span>
-                          <span className="text-xs font-medium bg-[#e6f4ea] text-[#137333] px-2.5 py-0.5 rounded-full">
-                            Gravação ∞ Liberada
-                          </span>
-                          <span className="text-[11px] bg-[#f1f3f4] text-[#444746] px-2 py-0.5 rounded-full">
-                            Salvo no SQLite
+                            {mtg.startTime}
                           </span>
                         </div>
                         <h3 className="text-base font-semibold">{mtg.title}</h3>
                         <p className="text-xs opacity-75">
-                          Sala:{" "}
+                          Código:{" "}
                           <code className="font-mono font-bold">
                             {mtg.roomCode}
-                          </code>{" "}
-                          • {mtg.description}
+                          </code>
+                          {mtg.description ? ` • ${mtg.description}` : ""}
                         </p>
                       </div>
 
@@ -1150,12 +950,9 @@ export function FreetingHomeDashboard() {
                 <div className="w-14 h-14 rounded-full bg-[#c2e7ff] text-[#001d35] flex items-center justify-center mx-auto mb-4">
                   <Phone className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-medium">
-                  Ligações Diretas P2P Sem Limite de Tempo
-                </h2>
+                <h2 className="text-xl font-medium">Ligações</h2>
                 <p className="text-sm opacity-75 max-w-md mx-auto mt-2 mb-6">
-                  Inicie uma chamada direta WebRTC com áudio e vídeo em alta
-                  definição, compartilhamento de tela e gravação contínua.
+                  Inicie uma chamada de vídeo ou áudio instantaneamente.
                 </p>
                 <div className="flex justify-center gap-3 flex-wrap">
                   <button
@@ -1164,14 +961,7 @@ export function FreetingHomeDashboard() {
                     className="h-11 px-6 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-medium inline-flex items-center gap-2 cursor-pointer"
                   >
                     <Video className="w-4 h-4" />
-                    Iniciar Ligação Instantânea (∞)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => enterRoom("amd-wraw-qkg")}
-                    className="h-11 px-6 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-sm font-semibold inline-flex items-center gap-2 cursor-pointer"
-                  >
-                    Entrar na Sala Oficial (amd-wraw-qkg)
+                    Iniciar ligação
                   </button>
                 </div>
               </div>
@@ -1184,11 +974,10 @@ export function FreetingHomeDashboard() {
                 <div>
                   <h2 className="text-xl font-medium flex items-center gap-2">
                     <Disc className="w-5 h-5 text-[#0f5223]" />
-                    Cofre de Gravações Ilimitadas (IndexedDB)
+                    Gravações
                   </h2>
                   <p className="text-xs opacity-75 mt-0.5">
-                    Todas as gravações são salvas localmente em chunks contínuos
-                    de 1 segundo, sem limite de 1 hora.
+                    Assista ou baixe as gravações das suas reuniões.
                   </p>
                 </div>
                 <button
@@ -1196,15 +985,13 @@ export function FreetingHomeDashboard() {
                   onClick={handleStartInstantMeeting}
                   className="px-4 py-2 rounded-full bg-[#c4eed0] text-[#0f5223] text-xs font-semibold cursor-pointer"
                 >
-                  + Nova Sala para Gravar
+                  + Nova reunião
                 </button>
               </div>
 
               {recordings.length === 0 ? (
                 <div className="border border-dashed border-[#dadce0] rounded-2xl p-10 text-center text-sm opacity-75">
-                  Nenhuma gravação salva ainda. Entre em uma reunião e clique no
-                  botão <strong>Gravar ∞</strong> na barra inferior para gravar
-                  sem limite de tempo!
+                  Nenhuma gravação disponível no momento.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1224,8 +1011,7 @@ export function FreetingHomeDashboard() {
                           </span>
                         </div>
                         <div className="text-xs opacity-75 mt-1">
-                          Sala: <code>{rec.roomCode}</code> • {rec.chunkCount}{" "}
-                          chunks gravados •{" "}
+                          Sala: <code>{rec.roomCode}</code> •{" "}
                           {new Date(rec.startedAtIso).toLocaleString("pt-BR")}
                         </div>
                       </div>
@@ -1244,7 +1030,7 @@ export function FreetingHomeDashboard() {
                           className="px-4 py-2 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          Baixar .webm
+                          Baixar
                         </button>
                         <button
                           type="button"
@@ -1258,78 +1044,6 @@ export function FreetingHomeDashboard() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {activeNav === "cloud" && (
-            <div className="py-4 space-y-5">
-              <div className={`rounded-3xl p-6 space-y-4 ${cardBgClass}`}>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-[#e8f0fe] text-[#0b57d0] flex items-center justify-center">
-                      <Globe className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold">
-                        Hospedagem & Domínio Gratuitos + Banco de Dados Híbrido
-                      </h2>
-                      <p className="text-xs opacity-75">
-                        Arquitetura com custo R$ 0,00 e salas ilimitadas
-                      </p>
-                    </div>
-                  </div>
-                  <a
-                    href={PUBLIC_HOSTED_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-xs font-semibold inline-flex items-center gap-1.5"
-                  >
-                    <span>Abrir Domínio Público</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="p-4 rounded-2xl bg-[#e6f4ea]/60 border border-[#ceead6] text-[#137333] space-y-2">
-                    <div className="font-bold text-sm flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
-                      1. Banco de Dados Híbrido Ativo
-                    </div>
-                    <p className="text-xs leading-relaxed">
-                      •{" "}
-                      <strong>
-                        Servidor (`node:sqlite` — `data/freeting.sqlite`):
-                      </strong>{" "}
-                      Armazena agendamentos, salas e atas em SQLite com modo
-                      WAL.
-                      <br />•{" "}
-                      <strong>
-                        Cliente (`IndexedDB` —
-                        `freeting_unlimited_recordings_db`):
-                      </strong>{" "}
-                      Armazena os chunks de vídeo `.webm` de longa duração (1h,
-                      3h, 10h+) diretamente no navegador sem estourar limites de
-                      nuvem gratuita!
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-[#e8f0fe]/60 border border-[#d3e3fd] text-[#041e49] space-y-2">
-                    <div className="font-bold text-sm flex items-center gap-1.5">
-                      <Globe className="w-4 h-4 text-[#0b57d0]" />
-                      2. Domínio & Hospedagem Gratuita
-                    </div>
-                    <p className="text-xs leading-relaxed">
-                      • <strong>GitHub Pages Ativo:</strong>{" "}
-                      <code className="font-mono font-bold">
-                        {PUBLIC_HOSTED_URL}
-                      </code>
-                      <br />• <strong>CI/CD Automático:</strong> Workflow
-                      `.github/workflows/deploy-pages.yml` + branch `gh-pages` +
-                      suporte `vercel.json` prontos.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </main>
@@ -1368,65 +1082,6 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL: Arquitetura de Banco de Dados & Domínio Gratuito */}
-      {showDbHostingModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-        >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Database className="w-5 h-5 text-[#0b57d0]" />
-                Banco de Dados Híbrido & Domínio Gratuito
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowDbHostingModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="text-xs text-[#444746] space-y-3 leading-relaxed">
-              <div className="p-3.5 rounded-2xl bg-[#f8f9fa] border border-[#dadce0]">
-                <div className="font-bold text-[#1f1f1f] mb-1">
-                  Por que usamos SQLite + IndexedDB Híbrido?
-                </div>
-                Agendamentos e atas são leves e ficam salvos no banco relacional{" "}
-                <strong>SQLite (`data/freeting.sqlite`)</strong> + cache
-                sincronizado. Já as gravações de vídeo de várias horas (`.webm`)
-                são salvas em chunks de 1s no <strong>IndexedDB</strong> do
-                navegador — garantindo gravação infinita sem custo de servidor!
-              </div>
-              <div className="p-3.5 rounded-2xl bg-[#e8f0fe] border border-[#d3e3fd]">
-                <div className="font-bold text-[#041e49] mb-1">
-                  Domínio Gratuito Publicado:
-                </div>
-                <a
-                  href={PUBLIC_HOSTED_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#0b57d0] font-mono font-bold underline break-all"
-                >
-                  {PUBLIC_HOSTED_URL}
-                </a>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowDbHostingModal(false)}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL 1: "Veja o link da sua reunião" */}
       {laterRoomCode && (
         <div
@@ -1449,7 +1104,7 @@ export function FreetingHomeDashboard() {
             </div>
             <p className="text-sm text-[#5f6368] mb-4">
               Copie este link e envie para as pessoas com quem você quer se
-              reunir. Esta sala possui duração e gravação ilimitadas (∞).
+              reunir. Guarde-o para usar mais tarde.
             </p>
             <div className="bg-[#f1f3f4] rounded-xl px-4 py-3 flex items-center justify-between gap-2 mb-5">
               <span className="text-sm font-mono truncate">
@@ -1505,7 +1160,7 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL 2: Agendar Reunião Sem Limite no SQLite */}
+      {/* MODAL 2: Agendar Reunião */}
       {showScheduleModal && (
         <div
           role="dialog"
@@ -1517,9 +1172,7 @@ export function FreetingHomeDashboard() {
             className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">
-                Agendar Reunião no Banco SQLite (∞)
-              </h3>
+              <h3 className="text-lg font-medium">Agendar reunião</h3>
               <button
                 type="button"
                 onClick={() => setShowScheduleModal(false)}
@@ -1537,14 +1190,14 @@ export function FreetingHomeDashboard() {
                 required
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Ex: Revisão de Arquitetura Sem Limite"
+                placeholder="Ex: Reunião de alinhamento"
                 className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0b57d0]"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-[#5f6368] mb-1">
-                  Data selecionada
+                  Data
                 </label>
                 <input
                   type="text"
@@ -1555,7 +1208,7 @@ export function FreetingHomeDashboard() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-[#5f6368] mb-1">
-                  Horário de início
+                  Horário
                 </label>
                 <input
                   type="time"
@@ -1567,23 +1220,15 @@ export function FreetingHomeDashboard() {
             </div>
             <div>
               <label className="block text-xs font-medium text-[#5f6368] mb-1">
-                Descrição / Pauta
+                Descrição (opcional)
               </label>
               <textarea
                 rows={2}
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Reunião com gravação ilimitada e anotações automáticas em português."
+                placeholder="Adicione uma pauta ou descrição para os participantes"
                 className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-[#0b57d0]"
               />
-            </div>
-            <div className="bg-[#e6f4ea] text-[#137333] rounded-xl p-3 text-xs flex items-center gap-2">
-              <InfinityIcon className="w-4 h-4 shrink-0" />
-              <span>
-                Persistido automaticamente em{" "}
-                <strong>SQLite (`data/freeting.sqlite`)</strong> + sincronização
-                local.
-              </span>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -1597,7 +1242,7 @@ export function FreetingHomeDashboard() {
                 type="submit"
                 className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium hover:bg-[#0842a0] cursor-pointer"
               >
-                Salvar na Agenda
+                Salvar
               </button>
             </div>
           </form>
@@ -1617,9 +1262,7 @@ export function FreetingHomeDashboard() {
                 <div className="w-9 h-9 rounded-full bg-[#d3e3fd] text-[#0b57d0] flex items-center justify-center">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-medium">
-                  Anotações feitas por IA & Gravação ∞
-                </h3>
+                <h3 className="text-lg font-medium">Anotações feitas por IA</h3>
               </div>
               <button
                 type="button"
@@ -1630,25 +1273,10 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <p className="text-sm text-[#444746]">
-              No <strong>FREETING</strong>, o assistente de IA em Português e a
-              gravação contínua estão liberados gratuitamente em todas as salas,
-              sem limite de 60 minutos.
+              Durante suas reuniões, o assistente de IA registra automaticamente
+              os principais pontos discutidos, gera resumos em português e
+              organiza os próximos passos da equipe.
             </p>
-            <ul className="space-y-2.5 text-xs text-[#444746] bg-[#f8f9fa] p-4 rounded-2xl border border-[#dadce0]">
-              <li>
-                • <strong>Gravação Contínua em Chunks (1s):</strong> Salva áudio
-                mixado + vídeo diretamente no IndexedDB sem estourar a memória
-                RAM.
-              </li>
-              <li>
-                • <strong>Transcrição ao Vivo (pt-BR):</strong> Reconhecimento
-                de voz contínuo com identificação de orador.
-              </li>
-              <li>
-                • <strong>Exportação Instantânea:</strong> Baixe o vídeo `.webm`
-                e a Ata completa em Markdown (`.md`) ao encerrar.
-              </li>
-            </ul>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
@@ -1659,28 +1287,28 @@ export function FreetingHomeDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => enterRoom("amd-wraw-qkg")}
+                onClick={handleStartInstantMeeting}
                 className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium hover:bg-[#0842a0] cursor-pointer"
               >
-                Entrar na Sala amd-wraw-qkg
+                Iniciar reunião com IA
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 4: Segurança & Recursos Ilimitados */}
+      {/* MODAL 4: Sua reunião está segura */}
       {showSecurityModal && (
         <div
           role="dialog"
           aria-modal="true"
           className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#1a73e8]" />
-                Segurança & Recursos Ilimitados FREETING
+                Sua reunião está segura
               </h3>
               <button
                 type="button"
@@ -1690,26 +1318,11 @@ export function FreetingHomeDashboard() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="text-sm text-[#444746] space-y-2">
-              <p>
-                O <strong>FREETING</strong> foi projetado com criptografia
-                WebRTC P2P e arquitetura sem limites de tempo ou gravação:
-              </p>
-              <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                <div className="p-3 rounded-xl bg-[#fce8e6] text-[#c5221f]">
-                  <div className="font-bold mb-1">Plataformas Tradicionais</div>
-                  <div>• Limite rígido de 60 min no plano grátis</div>
-                  <div>• Gravação bloqueada em contas gratuitas</div>
-                  <div>• Sem download local imediato em WebM</div>
-                </div>
-                <div className="p-3 rounded-xl bg-[#e6f4ea] text-[#137333]">
-                  <div className="font-bold mb-1">FREETING (Sem Limites)</div>
-                  <div>• Duração 100% Ilimitada (∞ horas)</div>
-                  <div>• Gravação chunked IndexedDB nativa</div>
-                  <div>• SQLite + IA em Português + .webm/.md</div>
-                </div>
-              </div>
-            </div>
+            <p className="text-sm text-[#444746] leading-relaxed">
+              As reuniões contam com controles de acesso do organizador e
+              comunicação protegida ponta a ponta. Somente pessoas com o código
+              ou link autorizado podem participar da sala.
+            </p>
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1723,7 +1336,7 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL 5: Configurações Pre-Flight de Dispositivos */}
+      {/* MODAL 5: Configurações de Áudio e Vídeo */}
       {showSettingsModal && (
         <div
           role="dialog"
@@ -1734,7 +1347,7 @@ export function FreetingHomeDashboard() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <Settings className="w-5 h-5 text-[#5f6368]" />
-                Configurações de Áudio, Vídeo e Acessibilidade
+                Configurações
               </h3>
               <button
                 type="button"
@@ -1748,33 +1361,18 @@ export function FreetingHomeDashboard() {
               <div className="p-3 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
                 <Mic className="w-5 h-5 text-[#0b57d0]" />
                 <div>
-                  <div className="font-medium">
-                    Microfone Padrão + Web Speech API (pt-BR)
-                  </div>
+                  <div className="font-medium">Microfone</div>
                   <div className="text-xs text-[#5f6368]">
-                    Mixagem Web Audio API e transcrição ao vivo ativas
+                    Padrão do sistema
                   </div>
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
                 <Camera className="w-5 h-5 text-[#0b57d0]" />
                 <div>
-                  <div className="font-medium">
-                    Câmera HD + Câmera Virtual Studio 720p
-                  </div>
+                  <div className="font-medium">Vídeo</div>
                   <div className="text-xs text-[#5f6368]">
-                    Fallback automático para vídeo 30fps mesmo sem webcam física
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-[#e6f4ea] border border-[#ceead6] flex items-center gap-3">
-                <Disc className="w-5 h-5 text-[#137333]" />
-                <div>
-                  <div className="font-medium text-[#137333]">
-                    Motor UnlimitedRecorderEngine
-                  </div>
-                  <div className="text-xs text-[#137333]">
-                    Flush contínuo a cada 1000ms (Sem limite de 1 hora)
+                    Alta definição (720p)
                   </div>
                 </div>
               </div>

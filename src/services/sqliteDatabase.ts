@@ -10,23 +10,6 @@ export interface StoredAiNote {
   createdAtIso: string;
 }
 
-// Default seed meetings so the database is immediately rich and demonstrable
-const DEFAULT_SEED_MEETINGS: ScheduledMeeting[] = [
-  {
-    id: "seed_mtg_1",
-    title: "Sprint Review & Arquitetura FREETING (∞ Sem Limite)",
-    roomCode: "amd-wraw-qkg",
-    dateIso: "2026-11-23",
-    startTime: "19:00",
-    endTime: "∞ Sem Limite",
-    hostName: "Erick Correa",
-    status: "SCHEDULED",
-    aiNotesEnabled: true,
-    unlimitedRecordingEnabled: true,
-    description: "Sala oficial reconstruída via REA + Superpowers sem limite de 60 minutos.",
-  },
-];
-
 interface SqliteStatementLike {
   all: (...params: unknown[]) => Array<Record<string, unknown>>;
   run: (...params: unknown[]) => unknown;
@@ -38,13 +21,11 @@ interface SqliteDatabaseLike {
 }
 
 let dbInstance: SqliteDatabaseLike | null = null;
-let memoryFallbackMeetings: ScheduledMeeting[] = [...DEFAULT_SEED_MEETINGS];
-let memoryFallbackNotes: StoredAiNote[] = [];
+let memoryFallbackMeetings: ScheduledMeeting[] = [];
 
 function getSqliteDb(): SqliteDatabaseLike | null {
   if (dbInstance) return dbInstance;
   try {
-    // Use Node.js 24 built-in node:sqlite module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sqlite = require("node:sqlite") as {
       DatabaseSync: new (location: string) => SqliteDatabaseLike;
@@ -81,34 +62,6 @@ function getSqliteDb(): SqliteDatabaseLike | null {
         createdAtIso TEXT NOT NULL
       );
     `);
-
-    // Seed initial meeting if table is empty
-    const countRow = db
-      .prepare("SELECT COUNT(*) as total FROM meetings")
-      .all()[0] as { total?: number } | undefined;
-    if (!countRow || Number(countRow.total) === 0) {
-      const insert = db.prepare(`
-        INSERT OR IGNORE INTO meetings (
-          id, title, roomCode, dateIso, startTime, endTime, hostName, status,
-          aiNotesEnabled, unlimitedRecordingEnabled, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const seed of DEFAULT_SEED_MEETINGS) {
-        insert.run(
-          seed.id,
-          seed.title,
-          seed.roomCode,
-          seed.dateIso,
-          seed.startTime,
-          seed.endTime,
-          seed.hostName,
-          seed.status,
-          seed.aiNotesEnabled ? 1 : 0,
-          seed.unlimitedRecordingEnabled ? 1 : 0,
-          seed.description || ""
-        );
-      }
-    }
 
     dbInstance = db;
     return dbInstance;

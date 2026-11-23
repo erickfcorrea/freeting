@@ -179,8 +179,8 @@ export function MeetingRoomView({
     {
       id: "welcome_msg",
       senderId: "system",
-      senderName: "FREETING Sistema ∞",
-      text: "Bem-vindo à sala sem limite de tempo! A chamada nunca cai após 60 minutos e a gravação local ilimitada está pronta.",
+      senderName: "FREETING",
+      text: "As mensagens enviadas aqui são visíveis apenas para as pessoas na chamada.",
       timestamp: "18:32",
     },
   ]);
@@ -854,15 +854,11 @@ export function MeetingRoomView({
     return (
       <div className="min-h-screen bg-[#131314] text-white flex flex-col items-center justify-center p-6">
         <div className="max-w-lg w-full bg-[#1e1f20] border border-[#3c4043] rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-14 h-14 rounded-full bg-[#1e3a2f] text-[#81c995] flex items-center justify-center mx-auto">
-            <InfinityIcon className="w-7 h-7" />
-          </div>
           <h1 className="text-2xl font-normal">Você saiu da reunião</h1>
           <p className="text-sm text-[#c4c7c5]">
-            Sala <code className="text-white font-mono">{roomCode}</code> • Tempo
-            total de sessão:{" "}
-            <strong className="text-[#81c995]">
-              {formatUnlimitedDuration(elapsedSeconds)} (Sem limite de 1h)
+            Sala <code className="text-white font-mono">{roomCode}</code> • Duração:{" "}
+            <strong className="text-white">
+              {formatUnlimitedDuration(elapsedSeconds)}
             </strong>
           </p>
 
@@ -880,7 +876,7 @@ export function MeetingRoomView({
               className="px-5 py-2.5 rounded-full bg-[#004a77] hover:bg-[#00639b] text-[#c2e7ff] text-sm font-medium flex items-center gap-2 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
-              Baixar Ata & Transcrição (.md)
+              Baixar resumo da reunião
             </button>
             <button
               type="button"
@@ -941,44 +937,13 @@ export function MeetingRoomView({
             <Info className="w-4 h-4" />
           </button>
 
-          {/* Unlimited Duration Pill */}
-          <div
-            title="Sem limite de 60 minutos! Clique em +1h para testar reuniões de longa duração."
-            className="hidden sm:flex items-center gap-2 bg-[#1e3a2f]/90 border border-[#34a853]/40 text-[#81c995] rounded-full px-3 py-1 text-xs font-medium"
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span className="font-mono">
-              {formatUnlimitedDuration(elapsedSeconds)}
-            </span>
-            <span>• ∞ Sem Limite</span>
-            <button
-              type="button"
-              onClick={() => {
-                setElapsedSeconds((s) => s + 3600);
-                showToast("Cronômetro avançado em +1 hora (Sem corte de 60 min!)");
-              }}
-              className="ml-1 bg-[#34a853]/30 hover:bg-[#34a853]/50 text-white px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer"
-            >
-              +1h
-            </button>
-          </div>
-
-          {/* Network & Database Sync Badge */}
-          <div className="hidden xl:flex items-center gap-1.5 bg-[#282a2c] text-[#c4c7c5] rounded-full px-3 py-1 text-[11px]">
-            <Wifi className="w-3.5 h-3.5 text-[#81c995]" />
-            <span>P2P HD • 14ms • SQLite Sync</span>
-          </div>
-
-          {/* Active Unlimited Recording Pill */}
+          {/* Active Recording Pill */}
           {recordingSession && (
             <div className="flex items-center gap-2 bg-[#3c1917] border border-[#f28b82]/50 text-[#f28b82] rounded-full px-3.5 py-1 text-xs font-medium animate-pulse">
               <span className="w-2 h-2 rounded-full bg-[#ea4335]" />
               <span>
-                {recordingSession.state === "PAUSED" ? "PAUSADO" : "REC ∞"}{" "}
+                {recordingSession.state === "PAUSED" ? "Pausado" : "Gravando"}{" "}
                 {formatUnlimitedDuration(activeRecDurationSec)}
-              </span>
-              <span className="text-[#e3e3e3]/80">
-                ({formatRecordingBytes(recordingSession.totalBytes)})
               </span>
               <button
                 type="button"
@@ -997,7 +962,7 @@ export function MeetingRoomView({
               <button
                 type="button"
                 onClick={handleStopAndDownloadRecording}
-                title="Finalizar e baixar .webm"
+                title="Parar gravação"
                 className="p-0.5 hover:text-white cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
@@ -1329,9 +1294,8 @@ export function MeetingRoomView({
                   </button>
                 </div>
                 <p className="text-[11px] text-[#e1f5fe] leading-relaxed">
-                  Agora você pode fazer perguntas à IA em Português, receber
-                  resumos de discussões e gravar reuniões{" "}
-                  <strong className="underline">sem limite de 1 hora</strong>.
+                  Agora você pode fazer perguntas ao assistente e receber
+                  resumos de discussões em Português.
                 </p>
                 <div className="w-3 h-3 bg-[#004a77] rotate-45 absolute -bottom-1.5 left-10 border-r border-b border-[#00639b]" />
               </div>
@@ -1546,14 +1510,13 @@ export function MeetingRoomView({
 
               {activeDrawer === "activities" && (
                 <div className="space-y-3">
-                  <div className="bg-[#1e3a2f] border border-[#34a853]/40 rounded-xl p-3.5 space-y-2">
-                    <div className="font-semibold text-[#81c995] flex items-center gap-1.5">
-                      <InfinityIcon className="w-4 h-4" />
-                      Gravação Ilimitada em Chunks (Sem corte de 1h)
+                  <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2">
+                    <div className="font-semibold text-white flex items-center gap-1.5">
+                      <Disc className="w-4 h-4 text-[#ea4335]" />
+                      Gravação da reunião
                     </div>
-                    <p className="text-[11px] text-[#e3e3e3]">
-                      Grave horas seguidas com persistência automática no
-                      IndexedDB e download direto em WebM.
+                    <p className="text-[11px] text-[#c4c7c5]">
+                      Grave a reunião para assistir ou compartilhar depois.
                     </p>
                     {!recordingSession ? (
                       <button
@@ -1561,7 +1524,7 @@ export function MeetingRoomView({
                         onClick={handleStartUnlimitedRecording}
                         className="w-full py-2 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white font-semibold cursor-pointer"
                       >
-                        ● Iniciar Gravação Ilimitada Agora
+                        ● Iniciar gravação
                       </button>
                     ) : (
                       <button
@@ -1569,7 +1532,7 @@ export function MeetingRoomView({
                         onClick={handleStopAndDownloadRecording}
                         className="w-full py-2 rounded-full bg-[#f28b82] text-[#601410] font-semibold cursor-pointer"
                       >
-                        ■ Parar e Baixar Gravação (
+                        ■ Parar gravação (
                         {formatUnlimitedDuration(activeRecDurationSec)})
                       </button>
                     )}
@@ -1578,8 +1541,8 @@ export function MeetingRoomView({
                   {previewVideoUrl && (
                     <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[#81c995]">
-                          Prévia da Última Gravação (.webm)
+                        <span className="font-semibold text-white">
+                          Prévia da gravação
                         </span>
                         <button
                           type="button"
@@ -1603,12 +1566,12 @@ export function MeetingRoomView({
                     className="w-full py-2.5 px-4 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                    Exportar Transcrição & Ata Completa (.md)
+                    Exportar resumo e transcrição
                   </button>
 
                   <div className="pt-2">
                     <div className="font-semibold text-[#9aa0a6] uppercase tracking-wider text-[10px] mb-2">
-                      Gravações salvas no Cofre ({savedRecordings.length})
+                      Gravações recentes ({savedRecordings.length})
                     </div>
                     {savedRecordings.map((rec) => (
                       <div
@@ -1837,7 +1800,7 @@ export function MeetingRoomView({
             <MonitorUp className="w-5 h-5" />
           </button>
 
-          {/* 4. Unlimited Recorder Button ("Gravar ∞") */}
+          {/* 4. Recorder Button ("Gravar") */}
           <button
             type="button"
             aria-pressed={!!recordingSession}
@@ -1850,17 +1813,17 @@ export function MeetingRoomView({
             }}
             title={
               recordingSession
-                ? "Parar e baixar gravação ilimitada (.webm) (Alt+R)"
-                : "Iniciar Gravação Ilimitada (Sem corte de 1 hora) (Alt+R)"
+                ? "Parar gravação (Alt+R)"
+                : "Gravar reunião (Alt+R)"
             }
             className={`h-11 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
               recordingSession
                 ? "bg-[#ea4335] text-white ring-4 ring-[#ea4335]/30"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#81c995] border border-[#34a853]/40"
+                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
             }`}
           >
             <Disc className="w-4 h-4" />
-            <span>{recordingSession ? "Parar REC" : "Gravar ∞"}</span>
+            <span>{recordingSession ? "Parar" : "Gravar"}</span>
           </button>
 
           {/* 5. Emoji Reactions */}
