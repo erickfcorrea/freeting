@@ -641,15 +641,6 @@ export function FreetingHomeDashboard() {
           >
             <Settings className="w-5 h-5" />
           </button>
-
-          <div
-            title="Erick Correa"
-            className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#0b57d0] to-[#137333] p-0.5 ml-1 cursor-pointer"
-          >
-            <div className="w-full h-full rounded-full bg-[#1a73e8] text-white text-sm font-semibold flex items-center justify-center">
-              E
-            </div>
-          </div>
         </div>
       </header>
 

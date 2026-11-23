@@ -17,6 +17,7 @@ import {
   LayoutGrid,
   Lock,
   Info,
+  Users,
   UserPlus,
   Copy,
   Check,
@@ -163,7 +164,7 @@ export function MeetingRoomView({
   const [participants, setParticipants] = useState<RoomParticipant[]>([
     {
       id: "local_host",
-      name: "Erick (Você)",
+      name: "Você",
       role: "HOST",
       isLocal: true,
       isMuted: true,
@@ -1019,11 +1020,9 @@ export function MeetingRoomView({
               setActiveDrawer((d) => (d === "people" ? null : "people"))
             }
             aria-label={`Participantes na sala: ${participants.length}`}
-            className="flex items-center gap-2 bg-[#282a2c] hover:bg-[#3c4043] rounded-full pl-1.5 pr-3 py-1 cursor-pointer"
+            className="flex items-center gap-2 bg-[#282a2c] hover:bg-[#3c4043] rounded-full px-3 py-1.5 cursor-pointer"
           >
-            <div className="w-6 h-6 rounded-full bg-[#0b57d0] text-white text-xs font-bold flex items-center justify-center">
-              E
-            </div>
+            <Users className="w-4 h-4 text-[#a8c7fa]" />
             <span className="text-xs font-semibold text-[#e3e3e3]">
               {participants.length}
             </span>
