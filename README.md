@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="public/freeting-logo.svg" alt="FREETING" width="480" />
+</div>
+
 # FREETING — Videoconferências & Gravações Sem Limites (`∞`)
 
 O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, agendamento semanal e gravação contínua no navegador, construída para oferecer **reuniões 100% gratuitas e sem limite de tempo**.
@@ -37,6 +41,8 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
 
 ```text
 freeting/
+├── public/
+│   └── freeting-logo.svg               # Logo tipográfica oficial sem fundo
 ├── src/
 │   ├── app/
 │   │   ├── api/meetings/route.ts       # API REST CRUD conectada ao SQLite

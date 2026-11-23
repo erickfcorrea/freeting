@@ -329,25 +329,16 @@ export function FreetingHomeDashboard() {
             : "border-transparent"
         }`}
       >
-        {/* Left: Google Meet Style Logo + FREETING Brand + DB Status Pill */}
-        <div className="flex items-center gap-2.5 min-w-[200px]">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#fbbc04] via-[#34a853] to-[#4285f4] p-0.5 shadow-sm">
-            <div
-              className={`w-full h-full rounded-[10px] flex items-center justify-center ${
-                isDark || isHC ? "bg-[#131314]" : "bg-white"
-              }`}
-            >
-              <Video className="w-5 h-5 text-[#1a73e8]" />
-            </div>
-          </div>
+        {/* Left: Typography-only FREETING Wordmark Logo (No Icon, Transparent Background) + DB Status Pill */}
+        <div className="flex items-center gap-3 min-w-[200px]">
+          <span
+            className={`text-[24px] font-extrabold tracking-wider bg-gradient-to-r from-[#2563EB] via-[#0EA5E9] to-[#10B981] bg-clip-text text-transparent select-none ${
+              isHC ? "!text-yellow-300 !bg-none" : ""
+            }`}
+          >
+            FREETING
+          </span>
           <div className="flex items-center gap-2">
-            <span
-              className={`text-[22px] font-bold tracking-tight ${
-                isHC ? "text-yellow-300" : isDark ? "text-white" : "text-[#0b57d0]"
-              }`}
-            >
-              FREETING
-            </span>
             <button
               type="button"
               onClick={() => setShowDbHostingModal(true)}
