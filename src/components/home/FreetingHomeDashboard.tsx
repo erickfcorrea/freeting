@@ -329,15 +329,13 @@ export function FreetingHomeDashboard() {
             : "border-transparent"
         }`}
       >
-        {/* Left: Typography-only FREETING Wordmark Logo (No Icon, Transparent Background) + DB Status Pill */}
+        {/* Left: Monumental Neo-Classical Serif FREETING Wordmark Logo (No Icon, Transparent Background) */}
         <div className="flex items-center gap-3 min-w-[200px]">
-          <span
-            className={`text-[24px] font-extrabold tracking-wider bg-gradient-to-r from-[#2563EB] via-[#0EA5E9] to-[#10B981] bg-clip-text text-transparent select-none ${
-              isHC ? "!text-yellow-300 !bg-none" : ""
-            }`}
-          >
-            FREETING
-          </span>
+          <img
+            src="/freeting-logo.svg"
+            alt="FREETING"
+            className="h-8 w-auto select-none"
+          />
           <div className="flex items-center gap-2">
             <button
               type="button"
