@@ -331,11 +331,39 @@ export function FreetingHomeDashboard() {
       >
         {/* Left: Monumental Neo-Classical Serif FREETING Wordmark Logo (No Icon, Transparent Background) */}
         <div className="flex items-center gap-3 min-w-[200px]">
-          <img
-            src="/freeting-logo.svg"
-            alt="FREETING"
-            className="h-8 w-auto select-none"
-          />
+          <svg
+            width="175"
+            height="32"
+            viewBox="0 0 880 160"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img"
+            aria-label="FREETING"
+            className="h-8 w-auto select-none shrink-0"
+          >
+            <defs>
+              <linearGradient id="headerAntiqueGold" x1="0" y1="22" x2="880" y2="138" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#D4AF37" />
+                <stop offset="30%" stopColor="#B8860B" />
+                <stop offset="65%" stopColor="#E6C365" />
+                <stop offset="100%" stopColor="#996515" />
+              </linearGradient>
+            </defs>
+            <g
+              fill={isHC ? "#FACC15" : "url(#headerAntiqueGold)"}
+              stroke={isDark || isHC ? "#FFF3D1" : "#5C4008"}
+              strokeWidth="1.2"
+            >
+              <path d="M36 28 H114 L116 48 H110 C108 38 103 35 90 35 H68 V74 H88 C98 74 101 71 103 63 H108 V91 H103 C101 83 98 80 88 80 H68 V116 C68 123 71 126 81 127 V132 H36 V127 C46 126 49 123 49 116 V44 C49 37 46 34 36 33 V28 Z" />
+              <path d="M138 28 H186 C210 28 224 39 224 56 C224 71 212 81 195 84 L222 119 C227 125 231 126 238 127 V132 H208 L177 87 H169 V116 C169 123 172 126 182 127 V132 H138 V127 C148 126 151 123 151 116 V44 C151 37 148 34 138 33 V28 Z M169 35 V80 H182 C197 80 204 72 204 57 C204 42 196 35 181 35 H169 Z" />
+              <path d="M254 28 H332 L334 48 H328 C326 38 321 35 308 35 H285 V74 H304 C314 74 317 71 319 63 H324 V91 H319 C317 83 314 80 304 80 H285 V118 C285 123 288 125 296 125 H312 C325 125 331 121 335 110 H341 L337 132 H254 V127 C264 126 267 123 267 116 V44 C267 37 264 34 254 33 V28 Z" />
+              <path d="M362 28 H440 L442 48 H436 C434 38 429 35 416 35 H393 V74 H412 C422 74 425 71 427 63 H432 V91 H427 C425 83 422 80 412 80 H393 V118 C393 123 396 125 404 125 H420 C433 125 439 121 443 110 H449 L445 132 H362 V127 C372 126 375 123 375 116 V44 C375 37 372 34 362 33 V28 Z" />
+              <path d="M464 28 H556 L558 50 H552 C549 39 544 35 532 35 H519 V116 C519 123 523 126 534 127 V132 H486 V127 C497 126 501 123 501 116 V35 H488 C476 35 471 39 468 50 H462 L464 28 Z" />
+              <path d="M576 28 H622 V33 C612 34 608 37 608 44 V116 C608 123 612 126 622 127 V132 H576 V127 C586 126 590 123 590 116 V44 C590 37 586 34 576 33 V28 Z" />
+              <path d="M642 28 H672 L724 103 V44 C724 37 720 34 710 33 V28 H746 V33 C736 34 732 37 732 44 V133 H724 L663 46 V116 C663 123 667 126 677 127 V132 H642 V127 C652 126 655 123 655 116 V44 C655 37 652 34 642 33 V28 Z" />
+              <path d="M816 26 C832 26 844 30 854 34 L856 56 H850 C845 41 833 33 816 33 C792 33 777 51 777 80 C777 109 793 127 818 127 C827 127 834 125 838 122 V96 C838 88 834 85 823 84 V79 H864 V84 C857 85 855 88 855 95 V125 C844 131 831 134 816 134 C781 134 757 112 757 80 C757 47 782 26 816 26 Z" />
+            </g>
+          </svg>
           <div className="flex items-center gap-2">
             <button
               type="button"
