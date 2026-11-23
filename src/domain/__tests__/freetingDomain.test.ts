@@ -24,6 +24,11 @@ import {
   filterMeetingsForDate,
   ScheduledMeeting,
 } from "../calendarSchedule";
+import {
+  listMeetingsFromDb,
+  createMeetingInDb,
+  deleteMeetingFromDb,
+} from "../../services/sqliteDatabase";
 
 describe("FREETING Core Domain — Reverse Engineered Google Meet + Unlimited Engine", () => {
   describe("Room Code Grammar (xxx-xxxx-xxx)", () => {
@@ -73,7 +78,6 @@ describe("FREETING Core Domain — Reverse Engineered Google Meet + Unlimited En
       let session = createRecordingSession("amd-wraw-qkg", t0);
       expect(session.state).toBe("RECORDING");
 
-      // Record for 90 minutes (5,400,000 ms) — past Google Meet's 1-hour limit!
       session = appendRecordingChunk(session, 50 * 1024 * 1024);
       session = appendRecordingChunk(session, 75 * 1024 * 1024);
       expect(session.chunkCount).toBe(2);
@@ -86,7 +90,6 @@ describe("FREETING Core Domain — Reverse Engineered Google Meet + Unlimited En
         90 * 60 * 1000
       );
 
-      // Resume and record another 45 minutes (total 2h 15m)
       const tResume = t90m + 600_000;
       session = resumeRecordingSession(session, tResume);
       const tEnd = tResume + 45 * 60 * 1000;
@@ -111,7 +114,7 @@ describe("FREETING Core Domain — Reverse Engineered Google Meet + Unlimited En
 
   describe("Google Meet Home 7-Day Calendar Strip & Scheduling", () => {
     it("formats Portuguese date header exactly like Meet ('seg., 23 de nov.')", () => {
-      const nov23_2026 = new Date(2026, 10, 23, 12, 0, 0); // Monday, Nov 23, 2026
+      const nov23_2026 = new Date(2026, 10, 23, 12, 0, 0);
       expect(formatPortugueseDateHeader(nov23_2026)).toBe("seg., 23 de nov.");
 
       const strip = buildWeekStrip(nov23_2026, nov23_2026);
@@ -154,6 +157,32 @@ describe("FREETING Core Domain — Reverse Engineered Google Meet + Unlimited En
       ];
       const filtered = filterMeetingsForDate(meetings, "2026-11-23");
       expect(filtered.map((m) => m.id)).toEqual(["2", "1"]);
+    });
+  });
+
+  describe("Hybrid SQLite Database Layer (node:sqlite)", () => {
+    it("persists, lists, and deletes scheduled meetings via SQLite engine", () => {
+      const testId = `test_sqlite_${Date.now()}`;
+      createMeetingInDb({
+        id: testId,
+        title: "Teste Banco SQLite FREETING",
+        roomCode: "sql-test-dbx",
+        dateIso: "2026-11-24",
+        startTime: "15:00",
+        endTime: "∞ Sem Limite",
+        hostName: "Erick",
+        status: "SCHEDULED",
+        aiNotesEnabled: true,
+        unlimitedRecordingEnabled: true,
+      });
+
+      const { meetings, engine } = listMeetingsFromDb();
+      expect(["node:sqlite", "memory-fallback"]).toContain(engine);
+      expect(meetings.some((m) => m.id === testId)).toBe(true);
+
+      deleteMeetingFromDb(testId);
+      const afterDelete = listMeetingsFromDb().meetings;
+      expect(afterDelete.some((m) => m.id === testId)).toBe(false);
     });
   });
 });

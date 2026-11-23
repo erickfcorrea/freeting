@@ -1,8 +1,10 @@
 node_modules/
 .next/
 out/
+out-gh-pages/
 dist/
 coverage/
+data/*.sqlite*
 .env*.local
 *.tsbuildinfo
 next-env.d.ts
