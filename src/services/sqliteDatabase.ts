@@ -125,7 +125,7 @@ export function createMeetingInDb(meeting: ScheduledMeeting): ScheduledMeeting {
     meeting.status,
     meeting.aiNotesEnabled ? 1 : 0,
     meeting.unlimitedRecordingEnabled ? 1 : 0,
-    meeting.description || ""
+    meeting.description || "",
   );
   return meeting;
 }
