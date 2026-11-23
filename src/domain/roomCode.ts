@@ -24,34 +24,50 @@ export function extractRoomCode(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return null;
 
-  // Direct match: amd-wraw-qkg
+  // 1. Check query parameter ?room=xxx-xxxx-xxx if a full URL was pasted
+  try {
+    if (trimmed.includes("?room=") || trimmed.includes("&room=")) {
+      const matchParam = trimmed.match(/[?&]room=([a-z0-9-_]+)/);
+      if (matchParam && matchParam[1]) {
+        return matchParam[1];
+      }
+    }
+  } catch {
+    // ignore URL parse error
+  }
+
+  // 2. Direct match: amd-wraw-qkg
   if (ROOM_CODE_REGEX.test(trimmed)) {
     return trimmed;
   }
 
-  // Raw 10 letters without hyphens: amdwrawqkg
+  // 3. Raw 10 letters without hyphens: amdwrawqkg -> amd-wraw-qkg
   if (/^[a-z]{10}$/.test(trimmed)) {
     return `${trimmed.slice(0, 3)}-${trimmed.slice(3, 7)}-${trimmed.slice(7, 10)}`;
   }
 
-  // Extract from URL or string containing xxx-xxxx-xxx (e.g., https://meet.google.com/amd-wraw-qkg?pli=1)
+  // 4. Extract embedded xxx-xxxx-xxx from any URL or text
   const embeddedMatch = trimmed.match(/([a-z]{3}-[a-z]{4}-[a-z]{3})/);
   if (embeddedMatch && embeddedMatch[1]) {
     return embeddedMatch[1];
   }
 
-  // Custom slug fallback: sanitize alphanumeric slug into valid room identifier
+  // 5. Flexible custom room code / slug (e.g. "sala-1", "daily", "projeto2026")
   const cleaned = trimmed
     .replace(/^https?:\/\/[^/]+\//, "")
+    .replace(/^freeting\//, "")
     .replace(/^room\//, "")
     .replace(/\?.*$/, "")
-    .replace(/[^a-z0-9-]/g, "");
+    .replace(/#.*$/, "")
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
-  if (ROOM_CODE_REGEX.test(cleaned)) {
-    return cleaned;
-  }
-  if (/^[a-z]{10}$/.test(cleaned)) {
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 10)}`;
+  if (cleaned.length >= 2) {
+    if (/^[a-z]{10}$/.test(cleaned)) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 10)}`;
+    }
+    return cleaned.slice(0, 32);
   }
 
   return null;
@@ -60,7 +76,13 @@ export function extractRoomCode(input: string): string | null {
 export function formatShareableLink(code: string, origin?: string): string {
   const normalized = extractRoomCode(code) ?? code.trim().toLowerCase();
   if (origin) {
-    return `${origin.replace(/\/$/, "")}/room/${normalized}`;
+    const base = origin.replace(/\/$/, "");
+    const pathPrefix =
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/freeting")
+        ? "/freeting"
+        : "";
+    return `${base}${pathPrefix}/?room=${normalized}`;
   }
-  return `freeting.app/${normalized}`;
+  return `freeting.app/?room=${normalized}`;
 }

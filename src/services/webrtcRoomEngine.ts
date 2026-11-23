@@ -42,6 +42,7 @@ export type RoomSignalPayload =
   | {
       type: "PEER_ANNOUNCE";
       participant: Omit<RoomParticipant, "stream" | "isLocal">;
+      isReply?: boolean;
     }
   | {
       type: "PEER_STATE_UPDATE";
@@ -84,12 +85,14 @@ export function pickAvatarColor(seed: string): string {
 
 /**
  * Multi-Peer WebRTC + BroadcastChannel Signaling Engine.
- * Automatically links multiple browser tabs/windows opened on `/room/[code]`
- * with live video/audio RTCPeerConnection AND supports simulated interactive peers.
+ * Automatically links multiple browser tabs/windows opened on the same roomCode
+ * with bidirectional discovery and live video/audio RTCPeerConnection.
  */
 export class FreetingWebRtcRoomEngine {
   private roomCode: string;
   private localId: string;
+  private localParticipantMeta: Omit<RoomParticipant, "stream" | "isLocal"> | null =
+    null;
   private channel: BroadcastChannel | null = null;
   private peerConnections = new Map<string, RTCPeerConnection>();
   private localStream: MediaStream | null = null;
@@ -112,6 +115,7 @@ export class FreetingWebRtcRoomEngine {
     localParticipant: Omit<RoomParticipant, "stream" | "isLocal">,
     stream: MediaStream | null
   ): void {
+    this.localParticipantMeta = localParticipant;
     this.localStream = stream;
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
 
@@ -122,7 +126,15 @@ export class FreetingWebRtcRoomEngine {
 
       if (data.type === "PEER_ANNOUNCE" && data.participant.id !== this.localId) {
         this.onSignalCallback(data);
-        await this.initiatePeerConnection(data.participant.id, true);
+        // Reply back with our own participant profile so both tabs see each other!
+        if (!data.isReply && this.localParticipantMeta) {
+          this.broadcast({
+            type: "PEER_ANNOUNCE",
+            participant: this.localParticipantMeta,
+            isReply: true,
+          });
+        }
+        await this.initiatePeerConnection(data.participant.id, !data.isReply);
         return;
       }
 
@@ -142,6 +154,20 @@ export class FreetingWebRtcRoomEngine {
     this.broadcast({
       type: "PEER_ANNOUNCE",
       participant: localParticipant,
+      isReply: false,
+    });
+  }
+
+  public updateLocalParticipantMeta(
+    patch: Partial<Omit<RoomParticipant, "stream" | "isLocal">>
+  ): void {
+    if (this.localParticipantMeta) {
+      this.localParticipantMeta = { ...this.localParticipantMeta, ...patch };
+    }
+    this.broadcast({
+      type: "PEER_STATE_UPDATE",
+      participantId: this.localId,
+      patch,
     });
   }
 

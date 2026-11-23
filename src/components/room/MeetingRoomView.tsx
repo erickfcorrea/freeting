@@ -54,6 +54,7 @@ import {
   listRecordingsFromVault,
   assembleRecordingBlobFromVault,
   triggerBlobDownload,
+  createVirtualCameraStream,
 } from "@/services/recordingVault";
 import {
   RoomParticipant,
@@ -76,22 +77,41 @@ const SIMULATED_BOT_PROFILES = [
     name: "Dra. Camila Mendes",
     greeting:
       "Olá pessoal! Que ótimo não termos mais o limite de 1 hora de reunião aqui no FREETING.",
+    autoReplies: [
+      "Perfeito! Estou acompanhando a apresentação e as anotações da IA estão super precisas.",
+      "Concordo totalmente. Com a gravação ilimitada em WebM não precisamos correr contra o relógio.",
+      "Excelente ponto! Vou registrar essa definição na nossa pauta.",
+    ],
   },
   {
     name: "Carlos Eduardo (Tech Lead)",
     greeting:
       "Áudio e vídeo super estáveis. Já ativei as anotações na minha aba também!",
+    autoReplies: [
+      "A latência P2P está excelente aqui, menos de 15ms.",
+      "Boa! O banco SQLite sincronizou todos os agendamentos da sprint.",
+    ],
   },
   {
     name: "Marina Costa (Produto)",
     greeting:
-      "A gravação ilimitada em WebM funcionando direto no navegador salvou nossa sprint.",
+      "A gravação ilimitada funcionando direto no navegador salvou nossa revisão semanal.",
+    autoReplies: [
+      "Sim! E depois podemos baixar a ata em Markdown com um clique.",
+      "Tudo certo do meu lado, podemos seguir!",
+    ],
   },
 ];
 
 export type StageLayoutMode = "auto" | "grid" | "spotlight";
 
-export function MeetingRoomView({ roomCode }: { roomCode: string }) {
+export function MeetingRoomView({
+  roomCode,
+  onLeaveToHome,
+}: {
+  roomCode: string;
+  onLeaveToHome?: () => void;
+}) {
   const router = useRouter();
 
   // Clock & Unlimited Elapsed Duration
@@ -101,6 +121,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   // Media & Accessibility States
   const [isMuted, setIsMuted] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(true);
+  const [isVirtualCamera, setIsVirtualCamera] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
@@ -109,11 +130,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const [highContrastMode, setHighContrastMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<StageLayoutMode>("auto");
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [a11yLiveText, setA11yLiveText] = useState(
     `Conectado à sala ${roomCode} sem limite de 1 hora.`
   );
 
-  // Overlays & Cards (Screenshot 2: "Sua reunião está pronta" + Teal Portuguese Gemini/AI card)
+  // Overlays & Cards
   const [showReadyCard, setShowReadyCard] = useState(true);
   const [showPtToastCard, setShowPtToastCard] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -124,9 +147,12 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   >(null);
 
   // Streams & Refs
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const screenVideoElRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const stopVirtualCamRef = useRef<(() => void) | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const speechRecognitionRef = useRef<{ stop: () => void } | null>(null);
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
   const localPeerIdRef = useRef<string>(
@@ -172,9 +198,21 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     []
   );
 
-  const announce = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string) => {
+    setStatusToast(msg);
     setA11yLiveText(msg);
+    setTimeout(() => {
+      setStatusToast((prev) => (prev === msg ? null : prev));
+    }, 3500);
   }, []);
+
+  const navigateBackHome = useCallback(() => {
+    if (onLeaveToHome) {
+      onLeaveToHome();
+    } else {
+      router.push("/");
+    }
+  }, [onLeaveToHome, router]);
 
   // Update clock and unlimited call duration every second
   useEffect(() => {
@@ -250,7 +288,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     engine.connect(
       {
         id: localId,
-        name: "Erick (Outra Aba)",
+        name: "Participante (Outra Aba)",
         role: "PARTICIPANT",
         isMuted: true,
         isCameraOff: true,
@@ -265,23 +303,44 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
     return () => {
       engine.disconnect();
+      if (stopVirtualCamRef.current) {
+        stopVirtualCamRef.current();
+        stopVirtualCamRef.current = null;
+      }
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {
+          // ignore
+        }
+      }
       releaseMediaStream(localStreamRef.current);
       releaseMediaStream(screenStreamRef.current);
     };
   }, [roomCode]);
 
-  // Attach local camera or screen stream to <video> element whenever active
-  useEffect(() => {
-    const videoEl = localVideoRef.current;
-    if (!videoEl) return;
-    if (isScreenSharing && screenStreamRef.current) {
-      videoEl.srcObject = screenStreamRef.current;
-    } else if (!isCameraOff && localStreamRef.current) {
-      videoEl.srcObject = localStreamRef.current;
-    } else {
-      videoEl.srcObject = null;
-    }
-  }, [isCameraOff, isScreenSharing]);
+  // Callback refs to bind MediaStream immediately when <video> mounts
+  const bindLocalVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      localVideoElRef.current = el;
+      if (el && localStreamRef.current && !isCameraOff) {
+        el.srcObject = localStreamRef.current;
+        el.play().catch(() => {});
+      }
+    },
+    [isCameraOff]
+  );
+
+  const bindScreenVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      screenVideoElRef.current = el;
+      if (el && screenStreamRef.current && isScreenSharing) {
+        el.srcObject = screenStreamRef.current;
+        el.play().catch(() => {});
+      }
+    },
+    [isScreenSharing]
+  );
 
   const spawnReaction = (emoji: string, senderName = "Você") => {
     const id = `react_${Date.now()}_${Math.random()}`;
@@ -296,20 +355,26 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
   const handleToggleMic = useCallback(async () => {
     if (isMuted) {
       try {
-        const stream =
-          localStreamRef.current ||
-          (await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: !isCameraOff,
-          }));
-        localStreamRef.current = stream;
-        stream.getAudioTracks().forEach((t) => (t.enabled = true));
-        webrtcEngineRef.current?.updateLocalStream(stream);
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        if (localStreamRef.current) {
+          audioStream.getAudioTracks().forEach((t) => {
+            localStreamRef.current?.addTrack(t);
+          });
+        } else {
+          localStreamRef.current = audioStream;
+        }
+        webrtcEngineRef.current?.updateLocalStream(localStreamRef.current);
+        showToast("Microfone ativado");
       } catch {
-        // Fallback: allow UI unmute state even in headless/permissionless browser environments
+        showToast("Microfone em modo simulado (sem dispositivo físico detectado)");
       }
       setIsMuted(false);
-      announce("Microfone ativado");
+      webrtcEngineRef.current?.updateLocalParticipantMeta({
+        isMuted: false,
+        isSpeaking: true,
+      });
       setParticipants((prev) =>
         prev.map((p) =>
           p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p
@@ -320,42 +385,76 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         ?.getAudioTracks()
         .forEach((t) => (t.enabled = false));
       setIsMuted(true);
-      announce("Microfone desativado");
+      showToast("Microfone desativado");
+      webrtcEngineRef.current?.updateLocalParticipantMeta({
+        isMuted: true,
+        isSpeaking: false,
+      });
       setParticipants((prev) =>
         prev.map((p) =>
           p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p
         )
       );
     }
-  }, [isMuted, isCameraOff, announce]);
+  }, [isMuted, showToast]);
 
-  // Toggle Camera
+  // Toggle Camera (Real Webcam OR Automatic 30fps Virtual Studio Camera Fallback!)
   const handleToggleCamera = useCallback(async () => {
     if (isCameraOff) {
+      let acquiredStream: MediaStream | null = null;
+      let usingVirtual = false;
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        acquiredStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 1280, height: 720 },
           audio: !isMuted,
         });
-        localStreamRef.current = stream;
-        webrtcEngineRef.current?.updateLocalStream(stream);
       } catch {
-        // Fallback if no physical webcam is connected
+        // Fallback: generate live 30fps virtual studio camera stream so camera ALWAYS works!
+        const virtualCam = createVirtualCameraStream("Erick (Você)", roomCode);
+        acquiredStream = virtualCam.stream;
+        stopVirtualCamRef.current = virtualCam.stopVirtualCamera;
+        usingVirtual = true;
       }
+
+      localStreamRef.current = acquiredStream;
+      setIsVirtualCamera(usingVirtual);
       setIsCameraOff(false);
-      announce("Câmera ativada");
+      webrtcEngineRef.current?.updateLocalStream(acquiredStream);
+      webrtcEngineRef.current?.updateLocalParticipantMeta({
+        isCameraOff: false,
+      });
       setParticipants((prev) =>
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
       );
+
+      if (localVideoElRef.current && acquiredStream) {
+        localVideoElRef.current.srcObject = acquiredStream;
+        localVideoElRef.current.play().catch(() => {});
+      }
+
+      showToast(
+        usingVirtual
+          ? "Câmera Virtual Studio HD ativada (nenhuma webcam física detectada)"
+          : "Câmera HD ativada"
+      );
     } else {
+      if (stopVirtualCamRef.current) {
+        stopVirtualCamRef.current();
+        stopVirtualCamRef.current = null;
+      }
       localStreamRef.current?.getVideoTracks().forEach((t) => t.stop());
       setIsCameraOff(true);
-      announce("Câmera desativada");
+      setIsVirtualCamera(false);
+      webrtcEngineRef.current?.updateLocalParticipantMeta({
+        isCameraOff: true,
+      });
       setParticipants((prev) =>
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p))
       );
+      showToast("Câmera desativada");
     }
-  }, [isCameraOff, isMuted, announce]);
+  }, [isCameraOff, isMuted, roomCode, showToast]);
 
   // Toggle Screen Share
   const handleToggleScreenShare = async () => {
@@ -366,65 +465,75 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
           audio: true,
         });
         screenStreamRef.current = displayStream;
-        displayStream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          screenStreamRef.current = null;
-        };
+        const videoTrack = displayStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.onended = () => {
+            setIsScreenSharing(false);
+            screenStreamRef.current = null;
+            showToast("Apresentação de tela encerrada");
+          };
+        }
         setIsScreenSharing(true);
-        announce("Compartilhamento de tela iniciado");
+        if (screenVideoElRef.current) {
+          screenVideoElRef.current.srcObject = displayStream;
+          screenVideoElRef.current.play().catch(() => {});
+        }
+        showToast("Apresentando sua tela para todos na sala");
       } catch {
-        // User cancelled screen picker
+        showToast("Compartilhamento de tela cancelado");
       }
     } else {
       releaseMediaStream(screenStreamRef.current);
       screenStreamRef.current = null;
       setIsScreenSharing(false);
-      announce("Compartilhamento de tela encerrado");
+      showToast("Apresentação de tela encerrada");
     }
   };
 
   // Start / Pause / Resume / Stop Unlimited Recording
   const handleStartUnlimitedRecording = useCallback(async () => {
-    const recorder = new LiveUnlimitedMediaRecorder(roomCode, (updated) => {
-      setRecordingSession({ ...updated });
-    });
-    recorderRef.current = recorder;
+    try {
+      const recorder = new LiveUnlimitedMediaRecorder(roomCode, (updated) => {
+        setRecordingSession({ ...updated });
+      });
+      recorderRef.current = recorder;
 
-    const primaryStream = isScreenSharing
-      ? screenStreamRef.current
-      : localStreamRef.current;
+      const primaryStream = isScreenSharing
+        ? screenStreamRef.current
+        : localStreamRef.current;
 
-    await recorder.start({
-      primaryVideoStream: primaryStream,
-      audioStreams: [localStreamRef.current, screenStreamRef.current],
-      roomCode,
-      participantNames: participants.map((p) => p.name),
-      getActiveCaption: () =>
-        captions.length > 0
-          ? `${captions[captions.length - 1].speakerName}: ${
-              captions[captions.length - 1].text
-            }`
-          : "",
-    });
-    announce(
-      "Gravação ilimitada iniciada. Os chunks estão sendo salvos no IndexedDB."
-    );
-  }, [roomCode, isScreenSharing, participants, captions, announce]);
+      await recorder.start({
+        primaryVideoStream: primaryStream,
+        audioStreams: [localStreamRef.current, screenStreamRef.current],
+        roomCode,
+        participantNames: participants.map((p) => p.name),
+        getActiveCaption: () =>
+          captions.length > 0
+            ? `${captions[captions.length - 1].speakerName}: ${
+                captions[captions.length - 1].text
+              }`
+            : "",
+      });
+      showToast("● Gravação ilimitada iniciada! Salvando chunks no IndexedDB.");
+    } catch {
+      showToast("Erro ao iniciar gravação no navegador.");
+    }
+  }, [roomCode, isScreenSharing, participants, captions, showToast]);
 
   const handlePauseResumeRecording = () => {
     if (!recorderRef.current || !recordingSession) return;
     if (recordingSession.state === "RECORDING") {
       recorderRef.current.pause();
-      announce("Gravação pausada");
+      showToast("Gravação pausada");
     } else if (recordingSession.state === "PAUSED") {
       recorderRef.current.resume();
-      announce("Gravação retomada");
+      showToast("Gravação retomada");
     }
   };
 
   const handleStopAndDownloadRecording = useCallback(async () => {
     if (!recorderRef.current) return;
-    await recorderRef.current.stopAndSave({
+    const { blob } = await recorderRef.current.stopAndSave({
       title: `Reunião FREETING (${roomCode})`,
       transcriptSummary: captions
         .map((c) => `${c.speakerName}: ${c.text}`)
@@ -433,19 +542,20 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     });
     recorderRef.current = null;
     setRecordingSession(null);
-    announce("Gravação finalizada e arquivo WebM baixado com sucesso.");
     await refreshVault();
-  }, [roomCode, captions, announce, refreshVault]);
+    if (blob.size > 0) {
+      const url = URL.createObjectURL(blob);
+      setPreviewVideoUrl(url);
+    }
+    setActiveDrawer("activities");
+    showToast("✓ Gravação salva no Cofre e download .webm iniciado!");
+  }, [roomCode, captions, showToast, refreshVault]);
 
-  // Toggle Live Captions (pt-BR)
+  // Toggle Live Captions (pt-BR) with real Web Speech API + interactive fallback
   const handleToggleCaptions = useCallback(() => {
     const next = !isCaptionsOn;
     setIsCaptionsOn(next);
-    announce(
-      next
-        ? "Legendas ao vivo em português ativadas"
-        : "Legendas ao vivo desativadas"
-    );
+
     if (next) {
       const entry: RoomCaptionEntry = {
         id: `cap_${Date.now()}`,
@@ -455,10 +565,62 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       };
       setCaptions((prev) => [...prev, entry]);
       webrtcEngineRef.current?.broadcast({ type: "CAPTION", entry });
-    }
-  }, [isCaptionsOn, clockText, announce]);
+      showToast("Legendas ao vivo em Português (CC) ativadas");
 
-  // Global Accessible Keyboard Shortcuts (Alt+M, Alt+V, Alt+R, Alt+C, Alt+H, ?)
+      // Attempt real browser Web Speech API SpeechRecognition
+      if (typeof window !== "undefined") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const recognition = new SpeechRec();
+            recognition.lang = "pt-BR";
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            recognition.onresult = (event: any) => {
+              const lastResult = event.results[event.results.length - 1];
+              if (lastResult && lastResult[0]?.transcript) {
+                const spokenText = String(lastResult[0].transcript).trim();
+                if (spokenText) {
+                  const capEntry: RoomCaptionEntry = {
+                    id: `cap_${Date.now()}`,
+                    speakerName: "Erick (Voz ao Vivo)",
+                    text: spokenText,
+                    timestamp: new Date().toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                  };
+                  setCaptions((prev) => [...prev, capEntry]);
+                  webrtcEngineRef.current?.broadcast({
+                    type: "CAPTION",
+                    entry: capEntry,
+                  });
+                }
+              }
+            };
+            recognition.start();
+            speechRecognitionRef.current = recognition;
+          } catch {
+            // Browser speech recognition not permitted or active
+          }
+        }
+      }
+    } else {
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {
+          // ignore
+        }
+        speechRecognitionRef.current = null;
+      }
+      showToast("Legendas ao vivo desativadas");
+    }
+  }, [isCaptionsOn, clockText, showToast]);
+
+  // Global Accessible Keyboard Shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -524,7 +686,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
       joinedAtIso: new Date().toISOString(),
     };
     setParticipants((prev) => [...prev, newBot]);
-    announce(`${profile.name} entrou na reunião.`);
+    showToast(`${profile.name} entrou na reunião`);
 
     const botMsg: RoomChatMessage = {
       id: `msg_${Date.now()}`,
@@ -561,23 +723,72 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     setAiResponses((prev) => [resp, ...prev]);
     setAiPrompt("");
     setActiveDrawer("ai");
-    announce("Resposta do Assistente IA gerada.");
+    showToast("Resumo da IA gerado com sucesso");
   };
 
-  // Send Chat Message
+  // Send Chat Message (with interactive response from simulated peers if present!)
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatDraft.trim()) return;
+    const userText = chatDraft.trim();
     const msg: RoomChatMessage = {
       id: `chat_${Date.now()}`,
       senderId: "local_host",
       senderName: "Erick (Você)",
-      text: chatDraft.trim(),
+      text: userText,
       timestamp: clockText,
     };
     setChatMessages((prev) => [...prev, msg]);
     webrtcEngineRef.current?.broadcast({ type: "CHAT_MESSAGE", message: msg });
     setChatDraft("");
+
+    // Also add to live transcript if captions are on
+    if (isCaptionsOn) {
+      setCaptions((prev) => [
+        ...prev,
+        {
+          id: `cap_chat_${Date.now()}`,
+          speakerName: "Erick (Você)",
+          text: userText,
+          timestamp: clockText,
+        },
+      ]);
+    }
+
+    // If simulated bot participants are in the room, have one reply naturally
+    const bots = participants.filter((p) => p.isSimulated);
+    if (bots.length > 0) {
+      const responder = bots[bots.length - 1];
+      const profile =
+        SIMULATED_BOT_PROFILES.find((b) => b.name === responder.name) ||
+        SIMULATED_BOT_PROFILES[0];
+      const replyText =
+        profile.autoReplies[
+          Math.floor(Math.random() * profile.autoReplies.length)
+        ];
+      setTimeout(() => {
+        const replyMsg: RoomChatMessage = {
+          id: `chat_bot_${Date.now()}`,
+          senderId: responder.id,
+          senderName: responder.name,
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setChatMessages((prev) => [...prev, replyMsg]);
+        setCaptions((prev) => [
+          ...prev,
+          {
+            id: `cap_bot_${Date.now()}`,
+            speakerName: responder.name,
+            text: replyText,
+            timestamp: replyMsg.timestamp,
+          },
+        ]);
+      }, 1200);
+    }
   };
 
   // Download Markdown Minutes & Transcript
@@ -592,7 +803,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     });
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     triggerBlobDownload(blob, `ata-freeting-${roomCode}.md`);
-    announce("Ata da reunião exportada em Markdown.");
+    showToast("Ata da reunião exportada em Markdown (.md)");
   };
 
   // End Call & Clean Hardware Tracks
@@ -600,11 +811,21 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     if (recorderRef.current && recordingSession) {
       await handleStopAndDownloadRecording();
     }
+    if (stopVirtualCamRef.current) {
+      stopVirtualCamRef.current();
+      stopVirtualCamRef.current = null;
+    }
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }
     releaseMediaStream(localStreamRef.current);
     releaseMediaStream(screenStreamRef.current);
     webrtcEngineRef.current?.disconnect();
     setIsCallEnded(true);
-    announce("Você saiu da chamada.");
   };
 
   const handleCopyRoomLink = async () => {
@@ -615,7 +836,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
     try {
       await navigator.clipboard.writeText(url);
       setCopiedLink(true);
-      announce("Link da sala copiado.");
+      showToast("Link da reunião copiado para a área de transferência!");
       setTimeout(() => setCopiedLink(false), 2500);
     } catch {
       // ignore
@@ -663,7 +884,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/")}
+              onClick={navigateBackHome}
               className="px-6 py-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] text-sm font-semibold cursor-pointer"
             >
               Voltar à tela inicial
@@ -680,14 +901,31 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
       }`}
     >
-      {/* ARIA Live Status Region for Screen Readers */}
+      {/* ARIA Live Status Region */}
       <div role="status" aria-live="polite" className="sr-only">
         {a11yLiveText}
       </div>
 
-      {/* TOP BAR — Exact Match to Screenshot 2 + FREETING Unlimited & Accessibility Telemetry */}
+      {/* VISIBLE FEEDBACK TOAST BANNER */}
+      {statusToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-5 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#81c995]" />
+          <span>{statusToast}</span>
+        </div>
+      )}
+
+      {/* TOP BAR */}
       <header className="h-14 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={navigateBackHome}
+            title="Voltar ao painel inicial FREETING"
+            className="text-xs font-bold tracking-wider text-[#E6C365] hover:underline cursor-pointer"
+          >
+            FREETING
+          </button>
+          <span className="text-[#5f6368]">|</span>
           <span className="text-sm font-medium text-[#e3e3e3]">{clockText}</span>
           <span className="text-[#5f6368]">|</span>
           <span className="text-sm font-medium text-[#e3e3e3] tracking-wide">
@@ -717,7 +955,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
               type="button"
               onClick={() => {
                 setElapsedSeconds((s) => s + 3600);
-                announce("Simulando mais 1 hora de reunião sem corte.");
+                showToast("Cronômetro avançado em +1 hora (Sem corte de 60 min!)");
               }}
               className="ml-1 bg-[#34a853]/30 hover:bg-[#34a853]/50 text-white px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer"
             >
@@ -779,12 +1017,11 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <span>+ Simular Participante</span>
           </button>
 
-          {/* High Contrast Accessibility Toggle */}
           <button
             type="button"
             onClick={() => {
               setHighContrastMode((v) => !v);
-              announce(
+              showToast(
                 !highContrastMode
                   ? "Alto contraste ativado"
                   : "Alto contraste desativado"
@@ -801,7 +1038,6 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             <Contrast className="w-4 h-4" />
           </button>
 
-          {/* Keyboard Shortcuts Helper Button */}
           <button
             type="button"
             onClick={() => setShowShortcutsModal(true)}
@@ -844,28 +1080,62 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
       {/* MAIN VIDEO STAGE + FLOATING CARDS + SIDE DRAWER */}
       <div className="flex-1 px-4 py-1 flex gap-3 overflow-hidden relative">
-        {/* Video Stage Grid */}
+        {/* Dedicated Screen Share Stage when presenting */}
+        {isScreenSharing && (
+          <div className="flex-1 bg-[#0d1520] border-2 border-[#a8c7fa]/40 rounded-2xl relative flex flex-col overflow-hidden">
+            <div className="bg-[#1e1f20]/90 px-4 py-2 flex items-center justify-between border-b border-[#3c4043]">
+              <span className="text-xs font-medium text-[#a8c7fa] flex items-center gap-2">
+                <MonitorUp className="w-4 h-4" />
+                Você está apresentando sua tela para todos
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleScreenShare}
+                className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold cursor-pointer"
+              >
+                Parar apresentação
+              </button>
+            </div>
+            <video
+              ref={bindScreenVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="flex-1 w-full h-full object-contain bg-black"
+            />
+          </div>
+        )}
+
+        {/* Participant Video Stage Grid */}
         <div
-          className={`flex-1 grid gap-3 h-full ${
-            layoutMode === "spotlight" || participants.length === 1
+          className={`${
+            isScreenSharing ? "w-72 shrink-0 flex flex-col" : "flex-1 grid"
+          } gap-3 h-full ${
+            !isScreenSharing &&
+            (layoutMode === "spotlight" || participants.length === 1
               ? "grid-cols-1"
               : participants.length === 2
               ? "grid-cols-1 md:grid-cols-2"
-              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")
           }`}
         >
           {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
             (participant) => (
               <div
                 key={participant.id}
-                className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
+                className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group flex-1 ${
                   highContrastMode
                     ? "bg-[#0a192f] border-2 border-yellow-400"
                     : "bg-[#1b3a6b] border border-white/10"
                 }`}
               >
-                {/* Top-Right Mic Status / Equalizer Badge — Matching Screenshot 2 */}
+                {/* Top-Right Mic Status / Equalizer Badge */}
                 <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1.5">
+                  {participant.isLocal && !isCameraOff && isVirtualCamera && (
+                    <span className="bg-black/60 text-[#81c995] text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#81c995]/30">
+                      Câmera Studio HD
+                    </span>
+                  )}
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center ${
                       participant.isMuted
@@ -893,10 +1163,10 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                   </div>
                 )}
 
-                {/* Live Video or Centered Avatar with Hover Pill */}
-                {participant.isLocal && (!isCameraOff || isScreenSharing) ? (
+                {/* Live Camera Video or Centered Avatar */}
+                {participant.isLocal && !isCameraOff ? (
                   <video
-                    ref={localVideoRef}
+                    ref={bindLocalVideoRef}
                     autoPlay
                     playsInline
                     muted
@@ -925,9 +1195,13 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                               typeof document !== "undefined" &&
                               document.documentElement.requestFullscreen
                             ) {
-                              document.documentElement
-                                .requestFullscreen()
-                                .catch(() => {});
+                              if (!document.fullscreenElement) {
+                                document.documentElement
+                                  .requestFullscreen()
+                                  .catch(() => {});
+                              } else {
+                                document.exitFullscreen?.().catch(() => {});
+                              }
                             }
                           }}
                           title="Tela cheia"
@@ -938,11 +1212,16 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
                             setLayoutMode((m) =>
                               m === "spotlight" ? "auto" : "spotlight"
-                            )
-                          }
+                            );
+                            showToast(
+                              layoutMode === "spotlight"
+                                ? "Layout em grade restaurado"
+                                : `${participant.name} fixado na tela principal`
+                            );
+                          }}
                           title="Fixar em destaque"
                           aria-label="Fixar participante na tela principal"
                           className="hover:text-white cursor-pointer"
@@ -964,16 +1243,14 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                 )}
 
                 {/* Bottom-left Participant Nameplate */}
-                {participants.length > 1 && (
-                  <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
-                    <span>{participant.name}</span>
-                    {participant.isSimulated && (
-                      <span className="text-[10px] text-[#8ab4f8]">
-                        • WebRTC Bot
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
+                  <span>{participant.name}</span>
+                  {participant.isSimulated && (
+                    <span className="text-[10px] text-[#8ab4f8]">
+                      • Conectado
+                    </span>
+                  )}
+                </div>
               </div>
             )
           )}
@@ -1080,13 +1357,41 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
         {/* LIVE CAPTIONS OVERLAY (CC) */}
         {isCaptionsOn && captions.length > 0 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-4 pointer-events-none">
-            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-5 py-3 text-sm text-white shadow-xl">
-              <div className="text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
-                {captions[captions.length - 1].speakerName} • Legendas ao Vivo
-                (Português)
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-4">
+            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-5 py-3 text-sm text-white shadow-xl flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
+                  {captions[captions.length - 1].speakerName} • Legendas ao Vivo
+                  (Português)
+                </div>
+                <div>{captions[captions.length - 1].text}</div>
               </div>
-              <div>{captions[captions.length - 1].text}</div>
+              <button
+                type="button"
+                onClick={() => {
+                  const sampleSpeeches = [
+                    "Estamos validando o novo motor de gravação ilimitada em WebM no navegador.",
+                    "A sincronização com o banco SQLite ficou instantânea e sem limite de 60 minutos.",
+                    "Podemos gerar a ata completa em Markdown clicando no assistente de IA.",
+                  ];
+                  const nextText =
+                    sampleSpeeches[captions.length % sampleSpeeches.length];
+                  const entry: RoomCaptionEntry = {
+                    id: `cap_sim_${Date.now()}`,
+                    speakerName: "Erick (Você)",
+                    text: nextText,
+                    timestamp: clockText,
+                  };
+                  setCaptions((prev) => [...prev, entry]);
+                  webrtcEngineRef.current?.broadcast({
+                    type: "CAPTION",
+                    entry,
+                  });
+                }}
+                className="shrink-0 bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] text-[11px] font-medium px-3 py-1.5 rounded-full border border-[#3c4043] cursor-pointer"
+              >
+                + Simular Fala
+              </button>
             </div>
           </div>
         )}
@@ -1270,6 +1575,28 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                     )}
                   </div>
 
+                  {previewVideoUrl && (
+                    <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[#81c995]">
+                          Prévia da Última Gravação (.webm)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewVideoUrl(null)}
+                          className="text-[#9aa0a6] hover:text-white cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <video
+                        src={previewVideoUrl}
+                        controls
+                        className="w-full rounded-lg bg-black max-h-40"
+                      />
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleExportMarkdownMinutes}
@@ -1286,7 +1613,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                     {savedRecordings.map((rec) => (
                       <div
                         key={rec.sessionId}
-                        className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between"
+                        className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
                       >
                         <div>
                           <div className="font-medium text-white">
@@ -1297,24 +1624,44 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                             {formatRecordingBytes(rec.totalBytes)}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const blob = await assembleRecordingBlobFromVault(
-                              rec.sessionId,
-                              rec.mimeType
-                            );
-                            if (blob) {
-                              triggerBlobDownload(
-                                blob,
-                                `freeting-${rec.roomCode}-${rec.sessionId}.webm`
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            title="Reproduzir gravação"
+                            onClick={async () => {
+                              const blob = await assembleRecordingBlobFromVault(
+                                rec.sessionId,
+                                rec.mimeType
                               );
-                            }
-                          }}
-                          className="p-2 rounded-full bg-[#0b57d0] text-white cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
+                              if (blob) {
+                                const url = URL.createObjectURL(blob);
+                                setPreviewVideoUrl(url);
+                              }
+                            }}
+                            className="p-2 rounded-full bg-[#1e3a2f] text-[#81c995] cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Baixar arquivo .webm"
+                            onClick={async () => {
+                              const blob = await assembleRecordingBlobFromVault(
+                                rec.sessionId,
+                                rec.mimeType
+                              );
+                              if (blob) {
+                                triggerBlobDownload(
+                                  blob,
+                                  `freeting-${rec.roomCode}-${rec.sessionId}.webm`
+                                );
+                              }
+                            }}
+                            className="p-2 rounded-full bg-[#0b57d0] text-white cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1335,7 +1682,14 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                     <input
                       type="checkbox"
                       checked={isRoomLocked}
-                      onChange={(e) => setIsRoomLocked(e.target.checked)}
+                      onChange={(e) => {
+                        setIsRoomLocked(e.target.checked);
+                        showToast(
+                          e.target.checked
+                            ? "Sala bloqueada para novos visitantes"
+                            : "Sala desbloqueada"
+                        );
+                      }}
                       className="w-4 h-4 accent-[#a8c7fa]"
                     />
                   </div>
@@ -1350,7 +1704,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
         )}
       </div>
 
-      {/* BOTTOM CONTROL BAR — Faithful to Screenshot 2 */}
+      {/* BOTTOM CONTROL BAR */}
       <footer className="h-20 px-5 flex items-center justify-between gap-4 shrink-0 relative">
         {/* Left: "Pedir para ... Somente você ↑" AI Prompt Bar */}
         <form
@@ -1572,7 +1926,10 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
             onClick={() => {
               const next = !isHandRaised;
               setIsHandRaised(next);
-              announce(next ? "Mão levantada" : "Mão abaixada");
+              showToast(next ? "✋ Mão levantada" : "Mão abaixada");
+              webrtcEngineRef.current?.updateLocalParticipantMeta({
+                isHandRaised: next,
+              });
               setParticipants((prev) =>
                 prev.map((p) =>
                   p.isLocal ? { ...p, isHandRaised: next } : p
@@ -1609,17 +1966,23 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
                   onClick={() => {
                     setShowMoreMenu(false);
                     if (!recordingSession) handleStartUnlimitedRecording();
+                    else handleStopAndDownloadRecording();
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-[#81c995] cursor-pointer"
                 >
                   <Disc className="w-4 h-4" />
-                  <span>Gravar reunião sem limite de 1h (.webm)</span>
+                  <span>
+                    {recordingSession
+                      ? "Parar e baixar gravação (.webm)"
+                      : "Gravar reunião sem limite de 1h (.webm)"}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowMoreMenu(false);
                     setElapsedSeconds((s) => s + 3600);
+                    showToast("Cronômetro avançado em +1 hora (Sem limite!)");
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
                 >

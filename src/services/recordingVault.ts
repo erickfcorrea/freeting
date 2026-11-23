@@ -166,19 +166,92 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+}
+
+/**
+ * Creates a live 30fps virtual studio camera stream via HTML5 Canvas
+ * whenever a user activates their camera on a device without a physical webcam.
+ */
+export function createVirtualCameraStream(participantName: string, roomCode: string): {
+  stream: MediaStream;
+  stopVirtualCamera: () => void;
+} {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext("2d");
+  let animId: number | null = null;
+  let frame = 0;
+
+  const draw = () => {
+    if (!ctx) return;
+    frame++;
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grad.addColorStop(0, "#0f2547");
+    grad.addColorStop(0.5, "#1b3a6b");
+    grad.addColorStop(1, "#0d1b2a");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Animated pulse rings
+    const pulse = Math.sin(frame * 0.06) * 14;
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 108 + pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(138, 180, 248, 0.25)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 84, 0, Math.PI * 2);
+    ctx.fillStyle = "#0b57d0";
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 64px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      (participantName || "E").charAt(0).toUpperCase(),
+      canvas.width / 2,
+      canvas.height / 2 + 2
+    );
+
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(participantName, canvas.width / 2, canvas.height / 2 + 125);
+
+    ctx.font = "18px sans-serif";
+    ctx.fillStyle = "#81c995";
+    ctx.fillText(
+      `Câmera Virtual Studio HD • Sala ${roomCode} • ${new Date().toLocaleTimeString("pt-BR")}`,
+      canvas.width / 2,
+      canvas.height / 2 + 162
+    );
+    ctx.textAlign = "left";
+
+    animId = requestAnimationFrame(draw);
+  };
+  draw();
+
+  const stream = canvas.captureStream(30);
+  const stopVirtualCamera = () => {
+    if (animId !== null) cancelAnimationFrame(animId);
+    stream.getTracks().forEach((t) => t.stop());
+  };
+
+  return { stream, stopVirtualCamera };
 }
 
 /**
  * LiveUnlimitedMediaRecorder:
  * Records camera, screen share, or an automatic 30fps live stage canvas compositor
  * + mixed multi-participant Web Audio API tracks with 1-second chunked persistence
- * and ZERO duration limit (works for 1h, 3h, 12h+).
+ * and ZERO duration limit.
  */
 export class LiveUnlimitedMediaRecorder {
   private mediaRecorder: MediaRecorder | null = null;
   private session: UnlimitedRecordingSession;
   private memoryChunks: Blob[] = [];
+  private pendingVaultWrites: Promise<void>[] = [];
   private syntheticCanvas: HTMLCanvasElement | null = null;
   private syntheticAnimFrame: number | null = null;
   private audioCtx: AudioContext | null = null;
@@ -208,20 +281,24 @@ export class LiveUnlimitedMediaRecorder {
       "video/webm;codecs=vp9,opus",
       "video/webm;codecs=vp8,opus",
       "video/webm",
+      "video/mp4",
     ];
     const selectedMime =
       mimeCandidates.find(
-        (m) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)
-      ) || "video/webm";
+        (m) =>
+          typeof MediaRecorder !== "undefined" &&
+          typeof MediaRecorder.isTypeSupported === "function" &&
+          MediaRecorder.isTypeSupported(m)
+      ) || "";
 
     this.session = createRecordingSession(
       options.roomCode,
       Date.now(),
-      selectedMime
+      selectedMime || "video/webm"
     );
     this.memoryChunks = [];
+    this.pendingVaultWrites = [];
 
-    // Build video track: either real camera/screen stream or 1280x720 live canvas stage
     const combinedTracks: MediaStreamTrack[] = [];
     const realVideoTrack = options.primaryVideoStream
       ?.getVideoTracks()
@@ -230,7 +307,6 @@ export class LiveUnlimitedMediaRecorder {
     if (realVideoTrack) {
       combinedTracks.push(realVideoTrack);
     } else if (typeof document !== "undefined") {
-      // Create a live 30fps canvas stage so recordings work even when camera is off!
       const canvas = document.createElement("canvas");
       canvas.width = 1280;
       canvas.height = 720;
@@ -242,8 +318,7 @@ export class LiveUnlimitedMediaRecorder {
         ctx.fillStyle = "#1b3a6b";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Header bar
-        ctx.fillStyle = "rgba(19, 19, 20, 0.85)";
+        ctx.fillStyle = "rgba(19, 19, 20, 0.88)";
         ctx.fillRect(0, 0, canvas.width, 64);
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
@@ -262,7 +337,6 @@ export class LiveUnlimitedMediaRecorder {
         ctx.fillStyle = "#f28b82";
         ctx.fillText(`● REC ${hh}:${mm}:${ss}`, canvas.width - 230, 40);
 
-        // Draw participant avatars
         const names = options.participantNames.length
           ? options.participantNames
           : ["Você (Organizador)"];
@@ -286,14 +360,13 @@ export class LiveUnlimitedMediaRecorder {
           ctx.textAlign = "left";
         });
 
-        // Draw live caption if any
         const caption = options.getActiveCaption?.();
         if (caption) {
-          ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-          ctx.fillRect(140, canvas.height - 110, canvas.width - 280, 64);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+          ctx.fillRect(120, canvas.height - 110, canvas.width - 240, 64);
           ctx.fillStyle = "#ffffff";
-          ctx.font = "22px sans-serif";
-          ctx.fillText(caption.slice(0, 85), 165, canvas.height - 70);
+          ctx.font = "21px sans-serif";
+          ctx.fillText(caption.slice(0, 88), 145, canvas.height - 70);
         }
 
         this.syntheticAnimFrame = requestAnimationFrame(renderFrame);
@@ -304,16 +377,18 @@ export class LiveUnlimitedMediaRecorder {
       canvasStream.getVideoTracks().forEach((t) => combinedTracks.push(t));
     }
 
-    // Mix all available audio streams using Web Audio API AudioContext
     if (typeof window !== "undefined" && "AudioContext" in window) {
       try {
         const audioCtx = new window.AudioContext();
+        if (audioCtx.state === "suspended") {
+          await audioCtx.resume().catch(() => {});
+        }
         this.audioCtx = audioCtx;
         const dest = audioCtx.createMediaStreamDestination();
         let hasAudioSource = false;
 
         for (const stream of options.audioStreams || []) {
-          if (stream && stream.getAudioTracks().length > 0) {
+          if (stream && stream.getAudioTracks().some((t) => t.readyState === "live")) {
             const source = audioCtx.createMediaStreamSource(stream);
             source.connect(dest);
             hasAudioSource = true;
@@ -324,7 +399,6 @@ export class LiveUnlimitedMediaRecorder {
           dest.stream.getAudioTracks().forEach((t) => combinedTracks.push(t));
         }
       } catch {
-        // Fallback: attach primary audio track directly
         options.primaryVideoStream
           ?.getAudioTracks()
           .forEach((t) => combinedTracks.push(t));
@@ -332,26 +406,26 @@ export class LiveUnlimitedMediaRecorder {
     }
 
     this.compositeStream = new MediaStream(combinedTracks);
-    const recorder = new MediaRecorder(this.compositeStream, {
-      mimeType: selectedMime,
-    });
+    const recorder = selectedMime
+      ? new MediaRecorder(this.compositeStream, { mimeType: selectedMime })
+      : new MediaRecorder(this.compositeStream);
     this.mediaRecorder = recorder;
 
-    recorder.ondataavailable = async (event: BlobEvent) => {
+    recorder.ondataavailable = (event: BlobEvent) => {
       if (event.data && event.data.size > 0) {
         const nextChunkIndex = this.session.chunkCount;
         this.memoryChunks.push(event.data);
         this.session = appendRecordingChunk(this.session, event.data.size);
         this.onUpdate({ ...this.session });
-        await saveRecordingChunkToVault(
+        const writePromise = saveRecordingChunkToVault(
           this.session.sessionId,
           nextChunkIndex,
           event.data
         );
+        this.pendingVaultWrites.push(writePromise);
       }
     };
 
-    // Flush chunks every 1000ms for unlimited multi-hour resilience
     recorder.start(1000);
     this.onUpdate({ ...this.session });
     return this.session;
@@ -380,11 +454,6 @@ export class LiveUnlimitedMediaRecorder {
     transcriptSummary?: string;
     autoDownload?: boolean;
   }): Promise<{ meta: StoredRecordingMeta; blob: Blob }> {
-    if (this.syntheticAnimFrame !== null) {
-      cancelAnimationFrame(this.syntheticAnimFrame);
-      this.syntheticAnimFrame = null;
-    }
-
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       await new Promise<void>((resolve) => {
         if (!this.mediaRecorder) {
@@ -392,8 +461,20 @@ export class LiveUnlimitedMediaRecorder {
           return;
         }
         this.mediaRecorder.onstop = () => resolve();
+        try {
+          if (this.mediaRecorder.state === "recording") {
+            this.mediaRecorder.requestData();
+          }
+        } catch {
+          // ignore
+        }
         this.mediaRecorder.stop();
       });
+    }
+
+    if (this.syntheticAnimFrame !== null) {
+      cancelAnimationFrame(this.syntheticAnimFrame);
+      this.syntheticAnimFrame = null;
     }
 
     if (this.audioCtx) {
@@ -405,10 +486,14 @@ export class LiveUnlimitedMediaRecorder {
       this.audioCtx = null;
     }
 
+    await Promise.allSettled(this.pendingVaultWrites);
+
     this.session = finalizeRecordingSession(this.session);
     this.onUpdate({ ...this.session });
 
-    const blob = new Blob(this.memoryChunks, { type: this.session.mimeType });
+    const blob = new Blob(this.memoryChunks, {
+      type: this.session.mimeType || "video/webm",
+    });
     const durationSeconds = Math.max(
       1,
       Math.round(this.session.accumulatedMs / 1000)
@@ -422,7 +507,7 @@ export class LiveUnlimitedMediaRecorder {
       durationSeconds,
       totalBytes: blob.size || this.session.totalBytes,
       chunkCount: this.session.chunkCount,
-      mimeType: this.session.mimeType,
+      mimeType: this.session.mimeType || "video/webm",
       transcriptSummary: options.transcriptSummary,
     };
 
