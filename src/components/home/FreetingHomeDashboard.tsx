@@ -53,6 +53,12 @@ import {
   deleteRecordingFromVault,
   triggerBlobDownload,
 } from "@/services/recordingVault";
+import {
+  LgpdConsentRecord,
+  DEFAULT_LGPD_CONSENT,
+  loadLgpdConsent,
+  saveLgpdConsent,
+} from "@/domain/lgpdCompliance";
 import { FreetingEmptyIllustration } from "./FreetingEmptyIllustration";
 import { MeetingRoomView } from "../room/MeetingRoomView";
 
@@ -97,9 +103,12 @@ export function FreetingHomeDashboard() {
   const [newStartTime, setNewStartTime] = useState("19:00");
   const [newDescription, setNewDescription] = useState("");
 
-  // Meetings & Recordings
+  // Meetings & Recordings & LGPD Consent
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
   const [recordings, setRecordings] = useState<StoredRecordingMeta[]>([]);
+  const [lgpdConsent, setLgpdConsent] =
+    useState<LgpdConsentRecord>(DEFAULT_LGPD_CONSENT);
+  const [lgpdFeedback, setLgpdFeedback] = useState<string | null>(null);
 
   const announce = (msg: string) => {
     setA11yAnnouncement(msg);
@@ -203,7 +212,49 @@ export function FreetingHomeDashboard() {
   useEffect(() => {
     loadMeetings();
     refreshRecordings();
+    setLgpdConsent(loadLgpdConsent());
   }, [loadMeetings, refreshRecordings]);
+
+  const handleExportLgpdDataPortability = () => {
+    const payload = {
+      platform: "FREETING",
+      legalBasis: "LGPD Art. 18, V - Portabilidade de Dados",
+      exportedAtIso: new Date().toISOString(),
+      consent: lgpdConsent,
+      scheduledMeetings: meetings,
+      recordingsMetadata: recordings,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+    triggerBlobDownload(blob, "freeting-portabilidade-dados-lgpd.json");
+    setLgpdFeedback("Arquivo de portabilidade de dados (JSON) exportado com sucesso.");
+  };
+
+  const handleEraseAllPersonalDataLgpd = async () => {
+    for (const rec of recordings) {
+      await deleteRecordingFromVault(rec.sessionId);
+    }
+    for (const mtg of meetings) {
+      try {
+        await fetch(`/api/meetings?id=${encodeURIComponent(mtg.id)}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      localStorage.removeItem(STORAGE_MEETINGS_KEY);
+    } catch {
+      // ignore
+    }
+    setMeetings([]);
+    setRecordings([]);
+    setLgpdFeedback(
+      "Todos os agendamentos e gravações foram permanentemente eliminados (Art. 18, VI da LGPD)."
+    );
+  };
 
   useEffect(() => {
     if (!activeRoomCode) {
@@ -1288,41 +1339,137 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL 4: Sua reunião está segura */}
+      {/* MODAL 4: Sua reunião está segura & Central de Privacidade LGPD */}
       {showSecurityModal && (
         <div
           role="dialog"
           aria-modal="true"
           className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#1a73e8]" />
-                Sua reunião está segura
+                Segurança & Central de Privacidade (LGPD)
               </h3>
               <button
                 type="button"
-                onClick={() => setShowSecurityModal(false)}
+                onClick={() => {
+                  setShowSecurityModal(false);
+                  setLgpdFeedback(null);
+                }}
                 className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-[#444746] leading-relaxed">
-              As reuniões contam com controles de acesso do organizador e
-              comunicação protegida ponta a ponta. Somente pessoas com o código
-              ou link autorizado podem participar da sala.
+            <p className="text-xs text-[#444746] leading-relaxed">
+              Em conformidade com a <strong>Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD)</strong>, o FREETING aplica o princípio da minimização de dados (Art. 6º, III): você participa de reuniões sem cadastro obrigatório e sem coleta de CPF, telefone ou e-mail.
             </p>
+
+            <div className="p-3.5 rounded-2xl bg-[#f8f9fa] border border-[#dadce0] space-y-2.5 text-xs">
+              <label className="flex items-start justify-between gap-3 cursor-pointer">
+                <div>
+                  <div className="font-semibold text-[#1f1f1f]">
+                    Proteção Automática de Dados Pessoais (Art. 5º, II e Art. 46)
+                  </div>
+                  <div className="text-[#5f6368]">
+                    Mascarar automaticamente CPFs, e-mails e telefones digitados no chat ou capturados em transcrições.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={lgpdConsent.autoMaskPersonalData}
+                  onChange={(e) => {
+                    const updated = saveLgpdConsent({
+                      autoMaskPersonalData: e.target.checked,
+                    });
+                    setLgpdConsent(updated);
+                  }}
+                  className="mt-1 w-4 h-4 accent-[#0b57d0]"
+                />
+              </label>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[#e8f0fe]/60 border border-[#d3e3fd] space-y-2.5 text-xs">
+              <div className="font-semibold text-[#041e49]">
+                Direitos do Titular dos Dados (Art. 18 da LGPD)
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportLgpdDataPortability}
+                  className="px-3.5 py-2 rounded-full bg-white hover:bg-[#f1f3f4] text-[#0b57d0] border border-[#dadce0] font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Exportar Meus Dados (Portabilidade)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEraseAllPersonalDataLgpd}
+                  className="px-3.5 py-2 rounded-full bg-[#fce8e6] hover:bg-[#fad2cf] text-[#c5221f] font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Eliminar Todos os Meus Dados
+                </button>
+              </div>
+              {lgpdFeedback && (
+                <div className="text-[11px] font-medium text-[#137333] pt-1">
+                  ✓ {lgpdFeedback}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => setShowSecurityModal(false)}
+                onClick={() => {
+                  const updated = saveLgpdConsent({
+                    acceptedPrivacyNotice: true,
+                  });
+                  setLgpdConsent(updated);
+                  setShowSecurityModal(false);
+                  setLgpdFeedback(null);
+                }}
                 className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium cursor-pointer"
               >
-                Entendi
+                Concluído
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BANNER DISCRETO DE TRANSPARÊNCIA E CONSENTIMENTO LGPD NO RODAPÉ */}
+      {!lgpdConsent.acceptedPrivacyNotice && (
+        <div
+          role="region"
+          aria-label="Aviso de Privacidade e LGPD"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[94%] bg-[#1e1f20] text-white rounded-2xl px-5 py-3.5 shadow-2xl border border-[#3c4043] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+        >
+          <div className="leading-relaxed text-[#e3e3e3]">
+            <strong className="text-white">Privacidade & LGPD:</strong> O FREETING não coleta cadastro pessoal e mantém suas gravações sob seu controle exclusivo no dispositivo.
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowSecurityModal(true)}
+              className="px-3.5 py-1.5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-white font-medium cursor-pointer"
+            >
+              Direitos LGPD
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const updated = saveLgpdConsent({
+                  acceptedPrivacyNotice: true,
+                });
+                setLgpdConsent(updated);
+              }}
+              className="px-4 py-1.5 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] font-semibold cursor-pointer"
+            >
+              Concordar
+            </button>
           </div>
         </div>
       )}

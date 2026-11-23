@@ -70,6 +70,11 @@ import {
   generateAiMeetingResponse,
   exportMeetingMinutesMarkdown,
 } from "@/services/aiMeetingAssistant";
+import {
+  loadLgpdConsent,
+  saveLgpdConsent,
+  maskPersonalDataInText,
+} from "@/domain/lgpdCompliance";
 
 const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "😂", "😮"];
 
@@ -127,6 +132,9 @@ export function MeetingRoomView({
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
+  const [lgpdAutoMask, setLgpdAutoMask] = useState<boolean>(() =>
+    loadLgpdConsent().autoMaskPersonalData
+  );
   const [isCallEnded, setIsCallEnded] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<StageLayoutMode>("auto");
@@ -515,7 +523,20 @@ export function MeetingRoomView({
               }`
             : "",
       });
-      showToast("● Gravação ilimitada iniciada! Salvando chunks no IndexedDB.");
+      saveLgpdConsent({ recordingConsentGranted: true });
+      const lgpdNotice: RoomChatMessage = {
+        id: `lgpd_rec_${Date.now()}`,
+        senderId: "system",
+        senderName: "Aviso de Privacidade (LGPD)",
+        text: "A gravação desta reunião foi iniciada com transparência aos participantes (Art. 7º, I da LGPD).",
+        timestamp: clockText,
+      };
+      setChatMessages((prev) => [...prev, lgpdNotice]);
+      webrtcEngineRef.current?.broadcast({
+        type: "CHAT_MESSAGE",
+        message: lgpdNotice,
+      });
+      showToast("● Gravação iniciada (Aviso de transparência LGPD enviado na sala)");
     } catch {
       showToast("Erro ao iniciar gravação no navegador.");
     }
@@ -582,7 +603,11 @@ export function MeetingRoomView({
             recognition.onresult = (event: any) => {
               const lastResult = event.results[event.results.length - 1];
               if (lastResult && lastResult[0]?.transcript) {
-                const spokenText = String(lastResult[0].transcript).trim();
+                const rawSpoken = String(lastResult[0].transcript).trim();
+                const spokenText = maskPersonalDataInText(
+                  rawSpoken,
+                  lgpdAutoMask
+                );
                 if (spokenText) {
                   const capEntry: RoomCaptionEntry = {
                     id: `cap_${Date.now()}`,
@@ -727,15 +752,15 @@ export function MeetingRoomView({
     showToast("Resumo da IA gerado com sucesso");
   };
 
-  // Send Chat Message (with interactive response from simulated peers if present!)
+  // Send Chat Message (with LGPD personal data masking and interactive response)
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatDraft.trim()) return;
-    const userText = chatDraft.trim();
+    const userText = maskPersonalDataInText(chatDraft.trim(), lgpdAutoMask);
     const msg: RoomChatMessage = {
       id: `chat_${Date.now()}`,
       senderId: "local_host",
-      senderName: "Erick (Você)",
+      senderName: "Você",
       text: userText,
       timestamp: clockText,
     };
@@ -1655,9 +1680,31 @@ export function MeetingRoomView({
                       className="w-4 h-4 accent-[#a8c7fa]"
                     />
                   </div>
-                  <div className="p-3 rounded-xl bg-[#1e3a2f] text-[#81c995]">
-                    ✓ Política Sem Limite ativa: Esta sala nunca será
-                    desconectada após 60 minutos.
+                  <div className="p-3 rounded-xl bg-[#282a2c] flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-white">
+                        Proteção de Dados Pessoais (LGPD)
+                      </div>
+                      <div className="text-[11px] text-[#9aa0a6]">
+                        Mascarar CPF, e-mail e telefone no chat e legendas
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={lgpdAutoMask}
+                      onChange={(e) => {
+                        setLgpdAutoMask(e.target.checked);
+                        saveLgpdConsent({
+                          autoMaskPersonalData: e.target.checked,
+                        });
+                        showToast(
+                          e.target.checked
+                            ? "Mascaramento automático LGPD ativado"
+                            : "Mascaramento automático LGPD desativado"
+                        );
+                      }}
+                      className="w-4 h-4 accent-[#a8c7fa]"
+                    />
                   </div>
                 </div>
               )}
