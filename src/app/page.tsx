@@ -1,5 +1,5 @@
-import { MeetHomeDashboard } from "@/components/home/MeetHomeDashboard";
+import { FreetingHomeDashboard } from "@/components/home/FreetingHomeDashboard";
 
 export default function HomePage() {
-  return <MeetHomeDashboard />;
+  return <FreetingHomeDashboard />;
 }

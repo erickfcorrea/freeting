@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export function MeetEmptyIllustration() {
+export function FreetingEmptyIllustration() {
   return (
     <svg
       width="260"

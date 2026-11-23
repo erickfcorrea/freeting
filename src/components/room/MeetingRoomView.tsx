@@ -1013,7 +1013,7 @@ export function MeetingRoomView({ roomCode }: { roomCode: string }) {
 
               <div className="bg-[#f1f3f4] rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs text-[#1f1f1f] truncate font-mono">
-                  {`meet.google.com/${roomCode}`}
+                  {`freeting.app/${roomCode}`}
                 </span>
                 <button
                   type="button"

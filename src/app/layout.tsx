@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "FREETING — Videoconferências e Gravações Sem Limites",
   description:
-    "Plataforma de videoconferência reconstruída via Engenharia Reversa (REA + Superpowers) inspirada no Google Meet, com tempo de reunião e gravação 100% ilimitados.",
+    "Plataforma de videoconferência gratuita com tempo de reunião e gravação 100% ilimitados, WebRTC P2P, legendas ao vivo e assistente de IA.",
 };
 
 export default function RootLayout({

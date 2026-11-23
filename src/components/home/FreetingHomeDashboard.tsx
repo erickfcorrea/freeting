@@ -59,14 +59,14 @@ import {
   deleteRecordingFromVault,
   triggerBlobDownload,
 } from "@/services/recordingVault";
-import { MeetEmptyIllustration } from "./MeetEmptyIllustration";
+import { FreetingEmptyIllustration } from "./FreetingEmptyIllustration";
 
 const STORAGE_MEETINGS_KEY = "freeting_scheduled_meetings_v1";
 const PUBLIC_HOSTED_URL = "https://erickfcorrea.github.io/freeting/";
 
 export type HomeThemeMode = "light" | "dark" | "high-contrast";
 
-export function MeetHomeDashboard() {
+export function FreetingHomeDashboard() {
   const router = useRouter();
 
   // Reference default date matching user's screenshot ("seg., 23 de nov.")
@@ -342,14 +342,11 @@ export function MeetHomeDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <span
-              className={`text-[22px] font-medium tracking-tight ${
-                isHC ? "text-yellow-300" : isDark ? "text-white" : "text-[#5f6368]"
+              className={`text-[22px] font-bold tracking-tight ${
+                isHC ? "text-yellow-300" : isDark ? "text-white" : "text-[#0b57d0]"
               }`}
             >
-              Meet{" "}
-              <span className="font-bold text-[#0b57d0] dark:text-[#8ab4f8]">
-                FREETING
-              </span>
+              FREETING
             </span>
             <button
               type="button"
@@ -812,7 +809,7 @@ export function MeetHomeDashboard() {
               {/* Scheduled Meetings or Empty State Illustration */}
               {todaysMeetings.length === 0 ? (
                 <div className="text-center pt-4 pb-10">
-                  <MeetEmptyIllustration />
+                  <FreetingEmptyIllustration />
                   <h2 className="text-[22px] font-normal mt-4">
                     Nenhuma reunião agendada para hoje
                   </h2>
@@ -1328,7 +1325,7 @@ export function MeetHomeDashboard() {
               </button>
             </div>
             <p className="text-sm text-[#444746]">
-              No <strong>FREETING</strong>, o assistente de IA em Português e a gravação contínua estão liberados gratuitamente em todas as salas, sem o limite de 60 minutos do Google Meet.
+              No <strong>FREETING</strong>, o assistente de IA em Português e a gravação contínua estão liberados gratuitamente em todas as salas, sem limite de 60 minutos.
             </p>
             <ul className="space-y-2.5 text-xs text-[#444746] bg-[#f8f9fa] p-4 rounded-2xl border border-[#dadce0]">
               <li>• <strong>Gravação Contínua em Chunks (1s):</strong> Salva áudio mixado + vídeo diretamente no IndexedDB sem estourar a memória RAM.</li>
@@ -1369,7 +1366,7 @@ export function MeetHomeDashboard() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#1a73e8]" />
-                Segurança & Engenharia Reversa (REA + Superpowers)
+                Segurança & Recursos Ilimitados FREETING
               </h3>
               <button
                 type="button"
@@ -1381,13 +1378,13 @@ export function MeetHomeDashboard() {
             </div>
             <div className="text-sm text-[#444746] space-y-2">
               <p>
-                O <strong>FREETING</strong> foi projetado via engenharia reversa limpa do Google Meet utilizando o <strong>REA (Reverse Engineer Anything)</strong> e a arquitetura <strong>Superpowers</strong>:
+                O <strong>FREETING</strong> foi projetado com criptografia WebRTC P2P e arquitetura sem limites de tempo ou gravação:
               </p>
               <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
                 <div className="p-3 rounded-xl bg-[#fce8e6] text-[#c5221f]">
-                  <div className="font-bold mb-1">Google Meet Gratuito</div>
-                  <div>• Limite rígido de 60 min em grupo</div>
-                  <div>• Gravação bloqueada no plano grátis</div>
+                  <div className="font-bold mb-1">Plataformas Tradicionais</div>
+                  <div>• Limite rígido de 60 min no plano grátis</div>
+                  <div>• Gravação bloqueada em contas gratuitas</div>
                   <div>• Sem download local imediato em WebM</div>
                 </div>
                 <div className="p-3 rounded-xl bg-[#e6f4ea] text-[#137333]">
