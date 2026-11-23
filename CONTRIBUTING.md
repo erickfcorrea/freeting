@@ -10,8 +10,9 @@ Obrigado pelo interesse em contribuir com o **FREETING**!
 2. **Qualidade de Código & Acessibilidade**:
    - Mantenha a tipagem estrita em TypeScript (`npm run typecheck` sem erros).
    - Preserve os atributos de acessibilidade WCAG 2.2 (`aria-label`, `aria-live`, `role`, navegação por teclado).
-3. **Fluxo de Branches e Commits**:
-   - Crie uma branch descritiva (`feat/nome-da-funcionalidade` ou `fix/descricao-da-correcao`).
+3. **Fluxo de Branches e Commits (`homo` → `main`)**:
+   - Todo desenvolvimento e novas funcionalidades devem ser comitados e testados na branch de homologação **`homo`**.
+   - Após validação completa em **`homo`**, realiza-se o merge para a branch principal **`main`** (produção).
    - Utilize mensagens de commit semânticas (`feat:`, `fix:`, `style:`, `chore:`).
 
 ## Como Rodar o Ambiente de Desenvolvimento
