@@ -8,17 +8,10 @@ O **FREETING** recria a experiência visual e funcional do **Google Meet** (Mate
 
 ---
 
-## Arquitetura & Documentação de Engenharia Reversa
-
-- [Dossiê de Engenharia Reversa REA (`meet-reverse-engineering-report.md`)](docs/rea-evidence/meet-reverse-engineering-report.md)
-- [Especificação Superpowers (`2026-11-23-freeting-design.md`)](docs/superpowers/specs/2026-11-23-freeting-design.md)
-- [Plano de Implementação TDD (`2026-11-23-freeting-plan.md`)](docs/superpowers/plans/2026-11-23-freeting-plan.md)
-
 ## Como Executar
 
 ```bash
 npm install
-npm test
 npm run dev
 ```
 

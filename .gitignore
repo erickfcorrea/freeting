@@ -10,3 +10,14 @@ data/*.sqlite*
 next-env.d.ts
 .DS_Store
 Thumbs.db
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+vitest.config.*
+docs/superpowers/specs/
+docs/superpowers/plans/
+docs/rea-evidence/
+docs/
+
