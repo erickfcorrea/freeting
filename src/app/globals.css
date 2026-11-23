@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --meet-surface: #ffffff;
+  --meet-input-bg: #f1f3f4;
+  --meet-green-pill: #c4eed0;
+  --meet-green-text: #0f5223;
+  --meet-blue-pill: #d3e3fd;
+  --meet-blue-text: #041e49;
+  --meet-security-bg: #e8f0fe;
+  --meet-dark-bg: #131314;
+  --meet-stage-navy: #1b3a6b;
+  --meet-control-dark: #282a2c;
+  --meet-danger-red: #ea4335;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Google Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes floatUpFade {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0px) scale(1.1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-120px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) scale(0.9);
+  }
+}
+
+.animate-reaction-float {
+  animation: floatUpFade 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
