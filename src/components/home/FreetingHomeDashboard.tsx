@@ -74,7 +74,7 @@ export function FreetingHomeDashboard() {
   const [isRoomCreator, setIsRoomCreator] = useState<boolean>(false);
 
   const [selectedDate, setSelectedDate] = useState<Date>(
-    () => new Date(2026, 10, 23, 12, 0, 0)
+    () => new Date(2026, 10, 23, 12, 0, 0),
   );
   const [joinInput, setJoinInput] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export function FreetingHomeDashboard() {
   const [theme, setTheme] = useState<HomeThemeMode>("light");
   const [fontScale, setFontScale] = useState<100 | 115 | 130>(100);
   const [a11yAnnouncement, setA11yAnnouncement] = useState(
-    "Painel inicial do FREETING carregado."
+    "Painel inicial do FREETING carregado.",
   );
 
   useEffect(() => {
@@ -200,11 +200,9 @@ export function FreetingHomeDashboard() {
           localItems = parsed
             .slice(0, 200)
             .map((item) =>
-              validateAndSanitizeMeetingInput(item, generateRoomCode())
+              validateAndSanitizeMeetingInput(item, generateRoomCode()),
             )
-            .filter(
-              (item): item is NonNullable<typeof item> => item !== null
-            );
+            .filter((item): item is NonNullable<typeof item> => item !== null);
           setMeetings(localItems);
         }
       }
@@ -220,7 +218,7 @@ export function FreetingHomeDashboard() {
           const mergedMap = new Map<string, ScheduledMeeting>();
           localItems.forEach((m) => mergedMap.set(m.id, m));
           data.meetings.forEach((m: ScheduledMeeting) =>
-            mergedMap.set(m.id, m)
+            mergedMap.set(m.id, m),
           );
           const merged = Array.from(mergedMap.values());
           setMeetings(merged);
@@ -258,7 +256,7 @@ export function FreetingHomeDashboard() {
     });
     triggerBlobDownload(blob, "freeting-portabilidade-dados-lgpd.json");
     setLgpdFeedback(
-      "Arquivo de portabilidade de dados (JSON) exportado com sucesso."
+      "Arquivo de portabilidade de dados (JSON) exportado com sucesso.",
     );
   };
 
@@ -283,13 +281,13 @@ export function FreetingHomeDashboard() {
     setMeetings([]);
     setRecordings([]);
     setLgpdFeedback(
-      "Todos os agendamentos e gravações foram permanentemente eliminados (Art. 18, VI da LGPD)."
+      "Todos os agendamentos e gravações foram permanentemente eliminados (Art. 18, VI da LGPD).",
     );
   };
 
   const persistMeetings = async (
     next: ScheduledMeeting[],
-    createdItem?: ScheduledMeeting
+    createdItem?: ScheduledMeeting,
   ) => {
     setMeetings(next);
     try {
@@ -312,7 +310,7 @@ export function FreetingHomeDashboard() {
 
   const weekStrip = buildWeekStrip(
     selectedDate,
-    new Date(2026, 10, 23, 12, 0, 0)
+    new Date(2026, 10, 23, 12, 0, 0),
   );
   const selectedDateIso = toLocalDateIso(selectedDate);
   const todaysMeetings = filterMeetingsForDate(meetings, selectedDateIso);
@@ -328,7 +326,7 @@ export function FreetingHomeDashboard() {
     const extracted = extractRoomCode(joinInput);
     if (!extracted) {
       setJoinError(
-        "Digite um código válido (ex: amd-wraw-qkg) ou cole o link da reunião."
+        "Digite um código válido (ex: amd-wraw-qkg) ou cole o link da reunião.",
       );
       announce("Erro: código de sala inválido.");
       return;
@@ -395,7 +393,10 @@ export function FreetingHomeDashboard() {
     announce("Reunião removida da agenda.");
   };
 
-  const handleCopyOrShareLink = async (text: string, useNativeShare = false) => {
+  const handleCopyOrShareLink = async (
+    text: string,
+    useNativeShare = false,
+  ) => {
     if (
       useNativeShare &&
       typeof navigator !== "undefined" &&
@@ -425,13 +426,13 @@ export function FreetingHomeDashboard() {
   const handleDownloadRecording = async (rec: StoredRecordingMeta) => {
     const blob = await assembleRecordingBlobFromVault(
       rec.sessionId,
-      rec.mimeType
+      rec.mimeType,
     );
     if (blob) {
       const ext = getRecordingFileExtension(rec.mimeType);
       triggerBlobDownload(
         blob,
-        `freeting-${rec.roomCode}-${rec.sessionId}.${ext}`
+        `freeting-${rec.roomCode}-${rec.sessionId}.${ext}`,
       );
       announce(`Baixando gravação da sala ${rec.roomCode}`);
     }
@@ -440,7 +441,7 @@ export function FreetingHomeDashboard() {
   const handlePreviewRecording = async (rec: StoredRecordingMeta) => {
     const blob = await assembleRecordingBlobFromVault(
       rec.sessionId,
-      rec.mimeType
+      rec.mimeType,
     );
     if (blob) {
       if (previewRecordingUrl?.url) {
@@ -473,20 +474,20 @@ export function FreetingHomeDashboard() {
   const rootBgClass = isHC
     ? "bg-black text-white"
     : isDark
-    ? "bg-[#131314] text-[#e3e3e3]"
-    : "bg-white text-[#1f1f1f]";
+      ? "bg-[#131314] text-[#e3e3e3]"
+      : "bg-white text-[#1f1f1f]";
 
   const cardBgClass = isHC
     ? "bg-black border-2 border-yellow-400 text-white"
     : isDark
-    ? "bg-[#1e1f20] border border-[#3c4043] text-[#e3e3e3]"
-    : "bg-white border border-[#dadce0] text-[#1f1f1f]";
+      ? "bg-[#1e1f20] border border-[#3c4043] text-[#e3e3e3]"
+      : "bg-white border border-[#dadce0] text-[#1f1f1f]";
 
   const bottomNavBgClass = isHC
     ? "bg-black border-t-2 border-yellow-400 text-white"
     : isDark
-    ? "bg-[#1e1f20]/95 border-t border-[#3c4043] text-[#e3e3e3]"
-    : "bg-white/95 border-t border-[#dadce0] text-[#1f1f1f]";
+      ? "bg-[#1e1f20]/95 border-t border-[#3c4043] text-[#e3e3e3]"
+      : "bg-white/95 border-t border-[#dadce0] text-[#1f1f1f]";
 
   return (
     <div
@@ -513,8 +514,8 @@ export function FreetingHomeDashboard() {
           isHC
             ? "bg-black border-yellow-400"
             : isDark
-            ? "bg-[#131314]/95 border-[#282a2c]"
-            : "bg-white/95 border-[#dadce0]/40 md:border-transparent"
+              ? "bg-[#131314]/95 border-[#282a2c]"
+              : "bg-white/95 border-[#dadce0]/40 md:border-transparent"
         }`}
       >
         {/* Left: Clean FREETING Wordmark Logo */}
@@ -574,8 +575,8 @@ export function FreetingHomeDashboard() {
               isHC
                 ? "bg-black border-2 border-yellow-400"
                 : isDark
-                ? "bg-[#282a2c] hover:bg-[#323537] focus-within:ring-2 focus-within:ring-[#8ab4f8]"
-                : "bg-[#f1f3f4] hover:bg-[#e8eaed] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0b57d0]"
+                  ? "bg-[#282a2c] hover:bg-[#323537] focus-within:ring-2 focus-within:ring-[#8ab4f8]"
+                  : "bg-[#f1f3f4] hover:bg-[#e8eaed] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0b57d0]"
             }`}
           >
             <Keyboard
@@ -583,8 +584,8 @@ export function FreetingHomeDashboard() {
                 isHC
                   ? "text-yellow-300"
                   : isDark
-                  ? "text-[#9aa0a6]"
-                  : "text-[#5f6368]"
+                    ? "text-[#9aa0a6]"
+                    : "text-[#5f6368]"
               }`}
             />
             <input
@@ -604,8 +605,8 @@ export function FreetingHomeDashboard() {
                 joinInput.trim()
                   ? "bg-[#0b57d0] text-white hover:bg-[#0842a0]"
                   : isDark
-                  ? "bg-[#3c4043] text-[#e3e3e3] hover:bg-[#4e5256]"
-                  : "bg-[#e0e2e5] text-[#5f6368] hover:bg-[#d2d5d9] hover:text-[#1f1f1f]"
+                    ? "bg-[#3c4043] text-[#e3e3e3] hover:bg-[#4e5256]"
+                    : "bg-[#e0e2e5] text-[#5f6368] hover:bg-[#d2d5d9] hover:text-[#1f1f1f]"
               }`}
             >
               Participar
@@ -684,8 +685,8 @@ export function FreetingHomeDashboard() {
                 theme === "light"
                   ? "dark"
                   : theme === "dark"
-                  ? "high-contrast"
-                  : "light";
+                    ? "high-contrast"
+                    : "light";
               setTheme(nextTheme);
             }}
             aria-label="Alternar tema visual"
@@ -770,8 +771,8 @@ export function FreetingHomeDashboard() {
             isHC
               ? "bg-black border-2 border-yellow-400"
               : isDark
-              ? "bg-[#282a2c] focus-within:ring-2 focus-within:ring-[#8ab4f8]"
-              : "bg-[#f1f3f4] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0b57d0]"
+                ? "bg-[#282a2c] focus-within:ring-2 focus-within:ring-[#8ab4f8]"
+                : "bg-[#f1f3f4] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0b57d0]"
           }`}
         >
           <Keyboard
@@ -779,8 +780,8 @@ export function FreetingHomeDashboard() {
               isHC
                 ? "text-yellow-300"
                 : isDark
-                ? "text-[#9aa0a6]"
-                : "text-[#5f6368]"
+                  ? "text-[#9aa0a6]"
+                  : "text-[#5f6368]"
             }`}
           />
           <input
@@ -996,8 +997,8 @@ export function FreetingHomeDashboard() {
                   isHC
                     ? "bg-black border-2 border-yellow-400 text-white"
                     : isDark
-                    ? "bg-[#1b3a6b]/50 border border-[#8ab4f8]/30 text-white"
-                    : "bg-[#e8f0fe] text-[#1f1f1f]"
+                      ? "bg-[#1b3a6b]/50 border border-[#8ab4f8]/30 text-white"
+                      : "bg-[#e8f0fe] text-[#1f1f1f]"
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -1063,7 +1064,7 @@ export function FreetingHomeDashboard() {
                       mtg.roomCode,
                       typeof window !== "undefined"
                         ? window.location.origin
-                        : undefined
+                        : undefined,
                     );
                     return (
                       <div
@@ -1124,13 +1125,16 @@ export function FreetingHomeDashboard() {
 
           {activeNav === "calls" && (
             <div className="py-4 sm:py-6 space-y-6">
-              <div className={`rounded-3xl p-6 sm:p-8 text-center ${cardBgClass}`}>
+              <div
+                className={`rounded-3xl p-6 sm:p-8 text-center ${cardBgClass}`}
+              >
                 <div className="w-14 h-14 rounded-full bg-[#c2e7ff] text-[#001d35] flex items-center justify-center mx-auto mb-4">
                   <Phone className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl font-medium">Ligações</h2>
                 <p className="text-sm opacity-75 max-w-md mx-auto mt-2 mb-6">
-                  Inicie uma chamada de vídeo ou áudio instantaneamente no celular ou computador.
+                  Inicie uma chamada de vídeo ou áudio instantaneamente no
+                  celular ou computador.
                 </p>
                 <div className="flex justify-center gap-3 flex-wrap">
                   <button
@@ -1410,7 +1414,7 @@ export function FreetingHomeDashboard() {
                   laterRoomCode,
                   typeof window !== "undefined"
                     ? window.location.origin
-                    : undefined
+                    : undefined,
                 )}
               </span>
               <div className="flex items-center gap-1 shrink-0">
@@ -1422,9 +1426,9 @@ export function FreetingHomeDashboard() {
                         laterRoomCode,
                         typeof window !== "undefined"
                           ? window.location.origin
-                          : undefined
+                          : undefined,
                       ),
-                      false
+                      false,
                     )
                   }
                   className="p-2 rounded-full hover:bg-[#e0e2e5] cursor-pointer"
@@ -1444,9 +1448,9 @@ export function FreetingHomeDashboard() {
                         laterRoomCode,
                         typeof window !== "undefined"
                           ? window.location.origin
-                          : undefined
+                          : undefined,
                       ),
-                      true
+                      true,
                     )
                   }
                   className="p-2 rounded-full hover:bg-[#e0e2e5] cursor-pointer"
@@ -1659,7 +1663,8 @@ export function FreetingHomeDashboard() {
               <label className="flex items-start justify-between gap-3 cursor-pointer">
                 <div>
                   <div className="font-semibold text-[#1f1f1f]">
-                    Proteção Automática de Dados Pessoais (Art. 5º, II e Art. 46)
+                    Proteção Automática de Dados Pessoais (Art. 5º, II e Art.
+                    46)
                   </div>
                   <div className="text-[#5f6368]">
                     Mascarar automaticamente CPFs, e-mails e telefones digitados
