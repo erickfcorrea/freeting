@@ -28,6 +28,7 @@ import {
   Contrast,
   Accessibility,
   Play,
+  Share2,
 } from "lucide-react";
 import {
   generateRoomCode,
@@ -86,7 +87,6 @@ export function FreetingHomeDashboard() {
     "Painel inicial do FREETING carregado."
   );
 
-  // Apply fontScale directly to root <html> element so all rem and typography scale globally
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.style.fontSize = `${fontScale}%`;
@@ -111,7 +111,7 @@ export function FreetingHomeDashboard() {
   const [newStartTime, setNewStartTime] = useState("19:00");
   const [newDescription, setNewDescription] = useState("");
 
-  // Meetings & Recordings & LGPD Consent
+  // Meetings, Recordings & LGPD Consent
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
   const [recordings, setRecordings] = useState<StoredRecordingMeta[]>([]);
   const [lgpdConsent, setLgpdConsent] =
@@ -226,6 +226,12 @@ export function FreetingHomeDashboard() {
     setLgpdConsent(loadLgpdConsent());
   }, [loadMeetings, refreshRecordings]);
 
+  useEffect(() => {
+    if (!activeRoomCode) {
+      refreshRecordings();
+    }
+  }, [activeRoomCode, refreshRecordings]);
+
   const handleExportLgpdDataPortability = () => {
     const payload = {
       platform: "FREETING",
@@ -239,7 +245,9 @@ export function FreetingHomeDashboard() {
       type: "application/json;charset=utf-8",
     });
     triggerBlobDownload(blob, "freeting-portabilidade-dados-lgpd.json");
-    setLgpdFeedback("Arquivo de portabilidade de dados (JSON) exportado com sucesso.");
+    setLgpdFeedback(
+      "Arquivo de portabilidade de dados (JSON) exportado com sucesso."
+    );
   };
 
   const handleEraseAllPersonalDataLgpd = async () => {
@@ -266,12 +274,6 @@ export function FreetingHomeDashboard() {
       "Todos os agendamentos e gravações foram permanentemente eliminados (Art. 18, VI da LGPD)."
     );
   };
-
-  useEffect(() => {
-    if (!activeRoomCode) {
-      refreshRecordings();
-    }
-  }, [activeRoomCode, refreshRecordings]);
 
   const persistMeetings = async (
     next: ScheduledMeeting[],
@@ -356,7 +358,7 @@ export function FreetingHomeDashboard() {
       dateIso: selectedDateIso,
       startTime: newStartTime,
       endTime: "",
-      hostName: "Erick Correa",
+      hostName: "Organizador",
       status: "SCHEDULED",
       aiNotesEnabled: true,
       unlimitedRecordingEnabled: true,
@@ -381,7 +383,23 @@ export function FreetingHomeDashboard() {
     announce("Reunião removida da agenda.");
   };
 
-  const handleCopyText = async (text: string) => {
+  const handleCopyOrShareLink = async (text: string, useNativeShare = false) => {
+    if (
+      useNativeShare &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function"
+    ) {
+      try {
+        await navigator.share({
+          title: "Convite de Reunião FREETING",
+          text: "Participe da nossa reunião no FREETING:",
+          url: text,
+        });
+        return;
+      } catch {
+        // Fallback to clipboard
+      }
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopiedCode(true);
@@ -451,10 +469,15 @@ export function FreetingHomeDashboard() {
     ? "bg-[#1e1f20] border border-[#3c4043] text-[#e3e3e3]"
     : "bg-white border border-[#dadce0] text-[#1f1f1f]";
 
+  const bottomNavBgClass = isHC
+    ? "bg-black border-t-2 border-yellow-400 text-white"
+    : isDark
+    ? "bg-[#1e1f20]/95 border-t border-[#3c4043] text-[#e3e3e3]"
+    : "bg-white/95 border-t border-[#dadce0] text-[#1f1f1f]";
+
   return (
     <div
-      style={{ fontSize: `${fontScale}%` }}
-      className={`min-h-screen flex flex-col transition-colors duration-200 ${rootBgClass}`}
+      className={`min-h-[100dvh] flex flex-col transition-colors duration-200 ${rootBgClass}`}
       onClick={() => {
         if (showNewMenu) setShowNewMenu(false);
       }}
@@ -470,28 +493,28 @@ export function FreetingHomeDashboard() {
         {a11yAnnouncement}
       </div>
 
-      {/* TOP HEADER BAR — Clean & Faithful */}
+      {/* TOP HEADER BAR — Adaptive Mobile & Desktop */}
       <header
         role="banner"
-        className={`h-16 px-4 flex items-center justify-between border-b select-none ${
+        className={`sticky top-0 z-30 safe-top h-14 md:h-16 px-4 flex items-center justify-between backdrop-blur-md border-b select-none ${
           isHC
-            ? "border-yellow-400"
+            ? "bg-black border-yellow-400"
             : isDark
-            ? "border-[#282a2c]"
-            : "border-transparent"
+            ? "bg-[#131314]/95 border-[#282a2c]"
+            : "bg-white/95 border-[#dadce0]/40 md:border-transparent"
         }`}
       >
         {/* Left: Clean FREETING Wordmark Logo */}
-        <div className="flex items-center min-w-[160px]">
+        <div className="flex items-center shrink-0">
           <svg
-            width="175"
-            height="32"
+            width="165"
+            height="30"
             viewBox="0 0 880 160"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             role="img"
             aria-label="FREETING"
-            className="h-8 w-auto select-none shrink-0"
+            className="h-6 sm:h-7 md:h-8 w-auto select-none shrink-0"
           >
             <defs>
               <linearGradient
@@ -525,9 +548,9 @@ export function FreetingHomeDashboard() {
           </svg>
         </div>
 
-        {/* Center Action Bar: Code Input + Participar + Nova + Anotações IA */}
+        {/* Desktop Center Action Bar (Hidden on Mobile where Dedicated Touch Hero is shown) */}
         <div
-          className="flex items-center gap-2.5 flex-wrap justify-center"
+          className="hidden md:flex items-center gap-2.5 justify-center"
           onClick={(e) => e.stopPropagation()}
         >
           <form
@@ -560,7 +583,7 @@ export function FreetingHomeDashboard() {
               }}
               placeholder="Digite um código ou link"
               aria-label="Digite um código ou link da reunião"
-              className="bg-transparent text-sm placeholder-[#5f6368] focus:outline-none w-44 sm:w-52"
+              className="bg-transparent text-sm placeholder-[#5f6368] focus:outline-none w-48 lg:w-56"
             />
             <button
               type="submit"
@@ -576,7 +599,7 @@ export function FreetingHomeDashboard() {
             </button>
           </form>
 
-          {/* "+ Nova" Green Pill Button with Dropdown */}
+          {/* "+ Nova" Green Pill Button with Desktop Dropdown */}
           <div className="relative">
             <button
               type="button"
@@ -592,7 +615,7 @@ export function FreetingHomeDashboard() {
             {showNewMenu && (
               <div
                 role="menu"
-                className={`absolute left-0 mt-2 w-72 rounded-2xl shadow-2xl py-2 z-50 ${cardBgClass}`}
+                className={`hidden md:block absolute left-0 mt-2 w-72 rounded-2xl shadow-2xl py-2 z-50 ${cardBgClass}`}
               >
                 <button
                   type="button"
@@ -601,10 +624,8 @@ export function FreetingHomeDashboard() {
                   className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
                 >
                   <Link2 className="w-4 h-4 text-[#0b57d0]" />
-                  <div>
-                    <div className="font-medium">
-                      Criar uma reunião para depois
-                    </div>
+                  <div className="font-medium">
+                    Criar uma reunião para depois
                   </div>
                 </button>
                 <button
@@ -614,10 +635,8 @@ export function FreetingHomeDashboard() {
                   className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
                 >
                   <Plus className="w-4 h-4 text-[#137333]" />
-                  <div>
-                    <div className="font-medium">
-                      Iniciar uma reunião instantânea
-                    </div>
+                  <div className="font-medium">
+                    Iniciar uma reunião instantânea
                   </div>
                 </button>
                 <button
@@ -627,15 +646,12 @@ export function FreetingHomeDashboard() {
                   className="w-full px-4 py-3 text-left text-sm hover:bg-[#0b57d0]/10 flex items-center gap-3 cursor-pointer"
                 >
                   <Calendar className="w-4 h-4 text-[#0b57d0]" />
-                  <div>
-                    <div className="font-medium">Agendar na agenda</div>
-                  </div>
+                  <div className="font-medium">Agendar na agenda</div>
                 </button>
               </div>
             )}
           </div>
 
-          {/* "Anotações feitas por IA" Light Blue Pill Button */}
           <button
             type="button"
             onClick={() => setShowAiNotesModal(true)}
@@ -646,8 +662,8 @@ export function FreetingHomeDashboard() {
           </button>
         </div>
 
-        {/* Right Icons */}
-        <div className="flex items-center gap-1.5 min-w-[160px] justify-end">
+        {/* Right Utility Icons (40x40px minimum touch targets on mobile) */}
+        <div className="flex items-center gap-1 justify-end">
           <button
             type="button"
             onClick={() => {
@@ -661,7 +677,7 @@ export function FreetingHomeDashboard() {
             }}
             aria-label="Alternar tema visual"
             title="Alternar tema: Claro / Escuro / Alto Contraste"
-            className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
+            className="w-10 h-10 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
           >
             {theme === "light" && <Sun className="w-5 h-5 text-[#5f6368]" />}
             {theme === "dark" && <Moon className="w-5 h-5 text-[#a8c7fa]" />}
@@ -680,7 +696,7 @@ export function FreetingHomeDashboard() {
             }}
             aria-label="Ajustar tamanho da fonte"
             title={`Aumentar tamanho das letras (${fontScale}%)`}
-            className="px-2.5 h-8 rounded-full border border-[#dadce0] dark:border-[#3c4043] text-xs font-bold hover:bg-[#0b57d0]/10 flex items-center gap-1 cursor-pointer"
+            className="px-2.5 h-9 rounded-full border border-[#dadce0] dark:border-[#3c4043] text-xs font-bold hover:bg-[#0b57d0]/10 flex items-center gap-1 cursor-pointer"
           >
             <Accessibility className="w-3.5 h-3.5 text-[#0b57d0]" />
             <span>{fontScale}%</span>
@@ -689,9 +705,9 @@ export function FreetingHomeDashboard() {
           <button
             type="button"
             onClick={() => setShowSecurityModal(true)}
-            title="Ajuda"
-            aria-label="Ajuda"
-            className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
+            title="Segurança e Privacidade (LGPD)"
+            aria-label="Segurança e Privacidade (LGPD)"
+            className="w-10 h-10 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
           >
             <HelpCircle className="w-5 h-5" />
           </button>
@@ -701,27 +717,94 @@ export function FreetingHomeDashboard() {
             onClick={() => setShowSettingsModal(true)}
             title="Configurações"
             aria-label="Configurações"
-            className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
+            className="w-10 h-10 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center opacity-80 cursor-pointer"
           >
             <Settings className="w-5 h-5" />
           </button>
         </div>
       </header>
 
+      {/* MOBILE HERO QUICK-ACTION BAR (Shown on Smartphones < md) */}
+      <section
+        aria-label="Ações rápidas de reunião"
+        className="md:hidden px-4 pt-3 pb-2 space-y-2.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setShowNewMenu(true)}
+            className="h-12 px-4 rounded-2xl bg-[#c4eed0] active:bg-[#b3e5c1] text-[#0f5223] text-sm font-semibold flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+          >
+            <Video className="w-4 h-4 shrink-0" />
+            <span>Nova reunião</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAiNotesModal(true)}
+            className="h-12 px-4 rounded-2xl bg-[#d3e3fd] active:bg-[#c2d7fa] text-[#041e49] text-sm font-semibold flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-[#0b57d0] shrink-0" />
+            <span className="truncate">Anotações IA</span>
+          </button>
+        </div>
+
+        {/* 16px font-size (text-base) prevents iOS Safari automatic input zoom! */}
+        <form
+          onSubmit={handleJoinRoom}
+          className={`flex items-center rounded-2xl h-12 pl-3.5 pr-1.5 transition-all ${
+            isHC
+              ? "bg-black border-2 border-yellow-400"
+              : isDark
+              ? "bg-[#282a2c] focus-within:ring-2 focus-within:ring-[#8ab4f8]"
+              : "bg-[#f1f3f4] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0b57d0]"
+          }`}
+        >
+          <Keyboard
+            className={`w-5 h-5 mr-2.5 shrink-0 ${
+              isHC
+                ? "text-yellow-300"
+                : isDark
+                ? "text-[#9aa0a6]"
+                : "text-[#5f6368]"
+            }`}
+          />
+          <input
+            type="text"
+            value={joinInput}
+            onChange={(e) => {
+              setJoinInput(e.target.value);
+              if (joinError) setJoinError(null);
+            }}
+            placeholder="Código ou link da sala"
+            aria-label="Código ou link da sala"
+            className="bg-transparent text-base placeholder-[#5f6368] focus:outline-none flex-1 min-w-0"
+          />
+          <button
+            type="submit"
+            className="ml-2 px-4 h-9 rounded-xl bg-[#0b57d0] active:bg-[#0842a0] text-white text-sm font-semibold shrink-0 cursor-pointer"
+          >
+            Participar
+          </button>
+        </form>
+      </section>
+
       {joinError && (
         <div
           role="alert"
-          className="mx-auto mt-1 text-xs text-[#d93025] bg-[#fce8e6] px-4 py-1.5 rounded-full"
+          className="mx-4 sm:mx-auto mt-1 text-xs text-[#d93025] bg-[#fce8e6] px-4 py-2 rounded-xl text-center"
         >
           {joinError}
         </div>
       )}
 
-      {/* BODY: LEFT NAVIGATION RAIL + MAIN CONTENT */}
-      <div className="flex-1 flex">
+      {/* BODY: DESKTOP LEFT RAIL + MAIN CONTENT */}
+      <div className="flex-1 flex pb-24 md:pb-0">
+        {/* Desktop Left Navigation Rail (Hidden on Mobile -> Replaced by Bottom Navigation Bar) */}
         <nav
           aria-label="Menu principal lateral"
-          className="w-20 pt-6 flex flex-col items-center gap-5 select-none shrink-0"
+          className="hidden md:flex w-20 pt-6 flex-col items-center gap-5 select-none shrink-0"
         >
           <button
             type="button"
@@ -789,34 +872,60 @@ export function FreetingHomeDashboard() {
         {/* Main Content Container */}
         <main
           id="main-content"
-          className="flex-1 max-w-4xl mx-auto px-6 pt-5 pb-16"
+          className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 pt-3 sm:pt-5 pb-12"
         >
           {activeNav === "meetings" && (
             <>
-              {/* Date Strip Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                <div className="flex items-center gap-2.5">
-                  <h1 className="text-[1.375rem] font-normal">
-                    {formatPortugueseDateHeader(selectedDate)}
-                  </h1>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedDate(new Date(2026, 10, 23, 12, 0, 0))
-                    }
-                    title="Calendário"
-                    aria-label="Voltar para a data atual"
-                    className="p-1.5 rounded-full hover:bg-[#0b57d0]/10 opacity-80 cursor-pointer"
-                  >
-                    <Calendar className="w-4 h-4" />
-                  </button>
+              {/* Date Strip Header — Touch-Swipeable on Mobile */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
+                <div className="flex items-center justify-between sm:justify-start gap-2">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-[1.25rem] sm:text-[1.375rem] font-normal">
+                      {formatPortugueseDateHeader(selectedDate)}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedDate(new Date(2026, 10, 23, 12, 0, 0))
+                      }
+                      title="Calendário"
+                      aria-label="Voltar para a data atual"
+                      className="p-2 rounded-full hover:bg-[#0b57d0]/10 opacity-80 cursor-pointer"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Mobile Compact Prev/Next Week Buttons */}
+                  <div className="flex sm:hidden items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedDate((d) => shiftDateByDays(d, -7))
+                      }
+                      aria-label="Semana anterior"
+                      className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedDate((d) => shiftDateByDays(d, 7))
+                      }
+                      aria-label="Próxima semana"
+                      className="w-9 h-9 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* 7-Day Week Selector Strip */}
+                {/* 7-Day Week Selector Strip (Full-width touch-friendly on mobile) */}
                 <div
                   role="group"
                   aria-label="Seletor de dias da semana"
-                  className="flex items-center gap-1.5 select-none"
+                  className="flex items-center justify-between sm:justify-end gap-1 select-none overflow-x-auto no-scrollbar py-0.5"
                 >
                   <button
                     type="button"
@@ -824,12 +933,12 @@ export function FreetingHomeDashboard() {
                       setSelectedDate((d) => shiftDateByDays(d, -7))
                     }
                     aria-label="Semana anterior"
-                    className="w-8 h-8 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
+                    className="hidden sm:flex w-8 h-8 rounded-full hover:bg-[#0b57d0]/10 items-center justify-center cursor-pointer shrink-0"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
 
-                  <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="grid grid-cols-7 sm:flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
                     {weekStrip.map((day) => (
                       <button
                         key={day.dateIso}
@@ -839,9 +948,9 @@ export function FreetingHomeDashboard() {
                           const [y, m, d] = day.dateIso.split("-").map(Number);
                           setSelectedDate(new Date(y, m - 1, d, 12, 0, 0));
                         }}
-                        className={`w-10 py-1.5 rounded-full flex flex-col items-center justify-center transition-all cursor-pointer ${
+                        className={`min-h-[52px] sm:w-10 py-1.5 rounded-2xl sm:rounded-full flex flex-col items-center justify-center transition-all cursor-pointer ${
                           day.isSelected
-                            ? "bg-[#a8c7fa] text-[#041e49] font-bold shadow-xs scale-105"
+                            ? "bg-[#a8c7fa] text-[#041e49] font-bold shadow-xs"
                             : "hover:bg-[#0b57d0]/10 opacity-80"
                         }`}
                       >
@@ -861,16 +970,16 @@ export function FreetingHomeDashboard() {
                       setSelectedDate((d) => shiftDateByDays(d, 7))
                     }
                     aria-label="Próxima semana"
-                    className="w-8 h-8 rounded-full hover:bg-[#0b57d0]/10 flex items-center justify-center cursor-pointer"
+                    className="hidden sm:flex w-8 h-8 rounded-full hover:bg-[#0b57d0]/10 items-center justify-center cursor-pointer shrink-0"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Clean Security Banner — Faithful to original design */}
+              {/* Clean Security Banner — Responsive Card on Mobile, Pill on Desktop */}
               <div
-                className={`rounded-full px-5 py-3.5 flex items-center justify-between gap-4 mb-12 ${
+                className={`rounded-2xl sm:rounded-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 mb-8 sm:mb-12 ${
                   isHC
                     ? "bg-black border-2 border-yellow-400 text-white"
                     : isDark
@@ -878,7 +987,7 @@ export function FreetingHomeDashboard() {
                     : "bg-[#e8f0fe] text-[#1f1f1f]"
                 }`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-[#1a73e8] text-white flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
@@ -893,17 +1002,17 @@ export function FreetingHomeDashboard() {
                 <button
                   type="button"
                   onClick={() => setShowSecurityModal(true)}
-                  className="shrink-0 bg-white/80 hover:bg-white text-[#1f1f1f] border border-[#dadce0] rounded-full px-4 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+                  className="shrink-0 bg-white/90 hover:bg-white text-[#1f1f1f] border border-[#dadce0] rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors cursor-pointer"
                 >
                   Saiba mais
                 </button>
               </div>
 
-              {/* Scheduled Meetings or Clean Empty State Illustration */}
+              {/* Scheduled Meetings or Empty State Illustration */}
               {todaysMeetings.length === 0 ? (
-                <div className="text-center pt-4 pb-10">
+                <div className="text-center pt-2 sm:pt-4 pb-8">
                   <FreetingEmptyIllustration />
-                  <h2 className="text-[1.375rem] font-normal mt-4">
+                  <h2 className="text-[1.25rem] sm:text-[1.375rem] font-normal mt-4">
                     Nenhuma reunião agendada para hoje
                   </h2>
                   <p className="text-sm opacity-75 mt-1.5 mb-6">
@@ -913,7 +1022,7 @@ export function FreetingHomeDashboard() {
                     <button
                       type="button"
                       onClick={handleStartInstantMeeting}
-                      className="h-11 px-6 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer"
+                      className="h-12 sm:h-11 px-6 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer"
                     >
                       <Video className="w-4 h-4" />
                       <span>Nova</span>
@@ -936,87 +1045,88 @@ export function FreetingHomeDashboard() {
                     </button>
                   </div>
 
-                  {todaysMeetings.map((mtg) => (
-                    <div
-                      key={mtg.id}
-                      className={`hover:border-[#0b57d0] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-2xs ${cardBgClass}`}
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="text-xs font-semibold text-[#0b57d0] bg-[#e8f0fe] px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            {mtg.startTime}
-                          </span>
+                  {todaysMeetings.map((mtg) => {
+                    const mtgLink = formatShareableLink(
+                      mtg.roomCode,
+                      typeof window !== "undefined"
+                        ? window.location.origin
+                        : undefined
+                    );
+                    return (
+                      <div
+                        key={mtg.id}
+                        className={`hover:border-[#0b57d0] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-2xs ${cardBgClass}`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="text-xs font-semibold text-[#0b57d0] bg-[#e8f0fe] px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {mtg.startTime}
+                            </span>
+                          </div>
+                          <h3 className="text-base font-semibold">
+                            {mtg.title}
+                          </h3>
+                          <p className="text-xs opacity-75">
+                            Código:{" "}
+                            <code className="font-mono font-bold">
+                              {mtg.roomCode}
+                            </code>
+                            {mtg.description ? ` • ${mtg.description}` : ""}
+                          </p>
                         </div>
-                        <h3 className="text-base font-semibold">{mtg.title}</h3>
-                        <p className="text-xs opacity-75">
-                          Código:{" "}
-                          <code className="font-mono font-bold">
-                            {mtg.roomCode}
-                          </code>
-                          {mtg.description ? ` • ${mtg.description}` : ""}
-                        </p>
-                      </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleCopyText(
-                              formatShareableLink(
-                                mtg.roomCode,
-                                typeof window !== "undefined"
-                                  ? window.location.origin
-                                  : undefined
-                              )
-                            )
-                          }
-                          className="px-3 py-2 rounded-full border border-[#dadce0] hover:bg-[#0b57d0]/10 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          Copiar link
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMeeting(mtg.id)}
-                          aria-label={`Excluir reunião ${mtg.title}`}
-                          className="p-2 rounded-full hover:bg-[#fce8e6] text-[#d93025] cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => enterRoom(mtg.roomCode)}
-                          className="px-5 py-2 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-semibold cursor-pointer shadow-xs"
-                        >
-                          Participar
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyOrShareLink(mtgLink, true)}
+                            className="h-10 px-3.5 rounded-full border border-[#dadce0] hover:bg-[#0b57d0]/10 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            Compartilhar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMeeting(mtg.id)}
+                            aria-label={`Excluir reunião ${mtg.title}`}
+                            className="w-10 h-10 rounded-full hover:bg-[#fce8e6] text-[#d93025] flex items-center justify-center cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => enterRoom(mtg.roomCode, false)}
+                            className="flex-1 sm:flex-none h-10 px-5 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-semibold cursor-pointer shadow-xs"
+                          >
+                            Participar
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
           )}
 
           {activeNav === "calls" && (
-            <div className="py-6 space-y-6">
-              <div className={`rounded-3xl p-8 text-center ${cardBgClass}`}>
+            <div className="py-4 sm:py-6 space-y-6">
+              <div className={`rounded-3xl p-6 sm:p-8 text-center ${cardBgClass}`}>
                 <div className="w-14 h-14 rounded-full bg-[#c2e7ff] text-[#001d35] flex items-center justify-center mx-auto mb-4">
                   <Phone className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl font-medium">Ligações</h2>
                 <p className="text-sm opacity-75 max-w-md mx-auto mt-2 mb-6">
-                  Inicie uma chamada de vídeo ou áudio instantaneamente.
+                  Inicie uma chamada de vídeo ou áudio instantaneamente no celular ou computador.
                 </p>
                 <div className="flex justify-center gap-3 flex-wrap">
                   <button
                     type="button"
                     onClick={handleStartInstantMeeting}
-                    className="h-11 px-6 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-medium inline-flex items-center gap-2 cursor-pointer"
+                    className="w-full sm:w-auto h-12 px-6 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Video className="w-4 h-4" />
-                    Iniciar ligação
+                    Iniciar ligação agora
                   </button>
                 </div>
               </div>
@@ -1024,7 +1134,7 @@ export function FreetingHomeDashboard() {
           )}
 
           {activeNav === "recordings" && (
-            <div className="py-4 space-y-4">
+            <div className="py-2 sm:py-4 space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h2 className="text-xl font-medium flex items-center gap-2">
@@ -1038,14 +1148,14 @@ export function FreetingHomeDashboard() {
                 <button
                   type="button"
                   onClick={handleStartInstantMeeting}
-                  className="px-4 py-2 rounded-full bg-[#c4eed0] text-[#0f5223] text-xs font-semibold cursor-pointer"
+                  className="h-10 px-4 rounded-full bg-[#c4eed0] text-[#0f5223] text-xs font-semibold cursor-pointer"
                 >
                   + Nova reunião
                 </button>
               </div>
 
               {recordings.length === 0 ? (
-                <div className="border border-dashed border-[#dadce0] rounded-2xl p-10 text-center text-sm opacity-75">
+                <div className="border border-dashed border-[#dadce0] rounded-2xl p-8 sm:p-10 text-center text-sm opacity-75">
                   Nenhuma gravação disponível no momento.
                 </div>
               ) : (
@@ -1074,7 +1184,7 @@ export function FreetingHomeDashboard() {
                         <button
                           type="button"
                           onClick={() => handlePreviewRecording(rec)}
-                          className="px-3.5 py-2 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-none h-10 px-3.5 rounded-full bg-[#c4eed0] hover:bg-[#b3e5c1] text-[#0f5223] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Play className="w-3.5 h-3.5" />
                           Assistir
@@ -1082,7 +1192,7 @@ export function FreetingHomeDashboard() {
                         <button
                           type="button"
                           onClick={() => handleDownloadRecording(rec)}
-                          className="px-4 py-2 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-none h-10 px-4 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
                           Baixar
@@ -1090,7 +1200,7 @@ export function FreetingHomeDashboard() {
                         <button
                           type="button"
                           onClick={() => handleDeleteRecording(rec.sessionId)}
-                          className="p-2 rounded-full hover:bg-[#fce8e6] text-[#d93025] cursor-pointer"
+                          className="w-10 h-10 rounded-full hover:bg-[#fce8e6] text-[#d93025] flex items-center justify-center cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1104,16 +1214,134 @@ export function FreetingHomeDashboard() {
         </main>
       </div>
 
+      {/* MOBILE BOTTOM NAVIGATION BAR (Material 3 Standard for Smartphones < md) */}
+      <nav
+        aria-label="Navegação inferior mobile"
+        className={`md:hidden fixed bottom-0 inset-x-0 z-30 safe-bottom backdrop-blur-lg ${bottomNavBgClass}`}
+      >
+        <div className="grid grid-cols-3 h-16 px-2">
+          <button
+            type="button"
+            onClick={() => setActiveNav("meetings")}
+            aria-current={activeNav === "meetings" ? "page" : undefined}
+            className="flex flex-col items-center justify-center gap-1 cursor-pointer"
+          >
+            <div
+              className={`w-14 h-7 rounded-full flex items-center justify-center transition-colors ${
+                activeNav === "meetings"
+                  ? "bg-[#c2e7ff] text-[#001d35]"
+                  : "opacity-75"
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-medium">Reuniões</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveNav("calls")}
+            aria-current={activeNav === "calls" ? "page" : undefined}
+            className="flex flex-col items-center justify-center gap-1 cursor-pointer"
+          >
+            <div
+              className={`w-14 h-7 rounded-full flex items-center justify-center transition-colors ${
+                activeNav === "calls"
+                  ? "bg-[#c2e7ff] text-[#001d35]"
+                  : "opacity-75"
+              }`}
+            >
+              <Phone className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-medium">Ligações</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveNav("recordings");
+              refreshRecordings();
+            }}
+            aria-current={activeNav === "recordings" ? "page" : undefined}
+            className="flex flex-col items-center justify-center gap-1 cursor-pointer relative"
+          >
+            <div
+              className={`w-14 h-7 rounded-full flex items-center justify-center transition-colors ${
+                activeNav === "recordings"
+                  ? "bg-[#c4eed0] text-[#0f5223]"
+                  : "opacity-75"
+              }`}
+            >
+              <Disc className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-medium">Gravações</span>
+            {recordings.length > 0 && (
+              <span className="absolute top-1.5 right-6 bg-[#0f5223] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {recordings.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </nav>
+
+      {/* MOBILE ACTION BOTTOM SHEET FOR "+ NOVA REUNIÃO" (< md) */}
+      {showNewMenu && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end"
+          onClick={() => setShowNewMenu(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full rounded-t-3xl p-5 safe-bottom space-y-2 animate-sheet-up ${cardBgClass}`}
+          >
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-3" />
+            <h3 className="text-base font-semibold px-2 pb-1">Nova reunião</h3>
+            <button
+              type="button"
+              onClick={handleCreateMeetingForLater}
+              className="w-full h-13 px-3 rounded-2xl hover:bg-[#0b57d0]/10 flex items-center gap-3.5 text-left text-sm font-medium cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#e8f0fe] text-[#0b57d0] flex items-center justify-center shrink-0">
+                <Link2 className="w-5 h-5" />
+              </div>
+              <span>Criar uma reunião para depois</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleStartInstantMeeting}
+              className="w-full h-13 px-3 rounded-2xl hover:bg-[#0b57d0]/10 flex items-center gap-3.5 text-left text-sm font-medium cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#e6f4ea] text-[#137333] flex items-center justify-center shrink-0">
+                <Plus className="w-5 h-5" />
+              </div>
+              <span>Iniciar uma reunião instantânea</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenScheduleModal}
+              className="w-full h-13 px-3 rounded-2xl hover:bg-[#0b57d0]/10 flex items-center gap-3.5 text-left text-sm font-medium cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#e8f0fe] text-[#0b57d0] flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <span>Agendar na agenda</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: Reprodutor de Vídeo de Gravação Salva */}
       {previewRecordingUrl && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/75 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className="bg-[#1e1f20] text-white rounded-3xl max-w-3xl w-full p-5 shadow-2xl space-y-4">
+          <div className="bg-[#1e1f20] text-white rounded-t-3xl sm:rounded-3xl max-w-3xl w-full p-5 safe-bottom shadow-2xl space-y-4 animate-sheet-up">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold">
+              <h3 className="text-base font-semibold truncate pr-2">
                 {previewRecordingUrl.title}
               </h3>
               <button
@@ -1122,7 +1350,7 @@ export function FreetingHomeDashboard() {
                   URL.revokeObjectURL(previewRecordingUrl.url);
                   setPreviewRecordingUrl(null);
                 }}
-                className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1131,20 +1359,22 @@ export function FreetingHomeDashboard() {
               src={previewRecordingUrl.url}
               controls
               autoPlay
-              className="w-full rounded-2xl bg-black max-h-[65vh]"
+              playsInline
+              className="w-full rounded-2xl bg-black max-h-[65dvh]"
             />
           </div>
         </div>
       )}
 
-      {/* MODAL 1: "Veja o link da sua reunião" */}
+      {/* MODAL 1: "Veja o link da sua reunião" (Bottom Sheet on Mobile) */}
       {laterRoomCode && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl">
+          <div className="bg-white text-[#1f1f1f] rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 safe-bottom shadow-2xl animate-sheet-up">
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-3 sm:hidden" />
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-medium">
                 Veja o link da sua reunião
@@ -1152,17 +1382,17 @@ export function FreetingHomeDashboard() {
               <button
                 type="button"
                 onClick={() => setLaterRoomCode(null)}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-[#5f6368] mb-4">
-              Copie este link e envie para as pessoas com quem você quer se
-              reunir. Guarde-o para usar mais tarde.
+              Copie ou compartilhe este link com as pessoas que vão participar
+              da reunião.
             </p>
-            <div className="bg-[#f1f3f4] rounded-xl px-4 py-3 flex items-center justify-between gap-2 mb-5">
-              <span className="text-sm font-mono truncate">
+            <div className="bg-[#f1f3f4] rounded-xl px-3.5 py-3 flex items-center justify-between gap-2 mb-5">
+              <span className="text-xs sm:text-sm font-mono truncate">
                 {formatShareableLink(
                   laterRoomCode,
                   typeof window !== "undefined"
@@ -1170,32 +1400,54 @@ export function FreetingHomeDashboard() {
                     : undefined
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  handleCopyText(
-                    formatShareableLink(
-                      laterRoomCode,
-                      typeof window !== "undefined"
-                        ? window.location.origin
-                        : undefined
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopyOrShareLink(
+                      formatShareableLink(
+                        laterRoomCode,
+                        typeof window !== "undefined"
+                          ? window.location.origin
+                          : undefined
+                      ),
+                      false
                     )
-                  )
-                }
-                className="p-2 rounded-full hover:bg-[#e0e2e5] cursor-pointer shrink-0"
-              >
-                {copiedCode ? (
-                  <Check className="w-4 h-4 text-[#137333]" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </button>
+                  }
+                  className="p-2 rounded-full hover:bg-[#e0e2e5] cursor-pointer"
+                  title="Copiar link"
+                >
+                  {copiedCode ? (
+                    <Check className="w-4 h-4 text-[#137333]" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopyOrShareLink(
+                      formatShareableLink(
+                        laterRoomCode,
+                        typeof window !== "undefined"
+                          ? window.location.origin
+                          : undefined
+                      ),
+                      true
+                    )
+                  }
+                  className="p-2 rounded-full hover:bg-[#e0e2e5] cursor-pointer"
+                  title="Compartilhar"
+                >
+                  <Share2 className="w-4 h-4 text-[#0b57d0]" />
+                </button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setLaterRoomCode(null)}
-                className="px-4 py-2 rounded-full text-sm font-medium text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
+                className="h-11 px-4 rounded-full text-sm font-medium text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
               >
                 Fechar
               </button>
@@ -1204,9 +1456,9 @@ export function FreetingHomeDashboard() {
                 onClick={() => {
                   const code = laterRoomCode;
                   setLaterRoomCode(null);
-                  enterRoom(code);
+                  enterRoom(code, true);
                 }}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium hover:bg-[#0842a0] cursor-pointer"
+                className="flex-1 sm:flex-none h-11 px-5 rounded-full bg-[#0b57d0] text-white text-sm font-semibold hover:bg-[#0842a0] cursor-pointer"
               >
                 Entrar agora
               </button>
@@ -1215,23 +1467,24 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL 2: Agendar Reunião */}
+      {/* MODAL 2: Agendar Reunião (Bottom Sheet on Mobile, 16px Inputs) */}
       {showScheduleModal && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
           <form
             onSubmit={handleSaveScheduledMeeting}
-            className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-white text-[#1f1f1f] rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 safe-bottom shadow-2xl space-y-4 animate-sheet-up"
           >
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-1 sm:hidden" />
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">Agendar reunião</h3>
               <button
                 type="button"
                 onClick={() => setShowScheduleModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1246,7 +1499,7 @@ export function FreetingHomeDashboard() {
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="Ex: Reunião de alinhamento"
-                className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0b57d0]"
+                className="w-full border border-[#dadce0] rounded-xl px-3.5 py-3 text-base sm:text-sm focus:outline-none focus:border-[#0b57d0]"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1258,7 +1511,7 @@ export function FreetingHomeDashboard() {
                   type="text"
                   disabled
                   value={formatPortugueseDateHeader(selectedDate)}
-                  className="w-full bg-[#f1f3f4] border border-[#dadce0] rounded-xl px-3.5 py-2.5 text-sm text-[#5f6368]"
+                  className="w-full bg-[#f1f3f4] border border-[#dadce0] rounded-xl px-3.5 py-3 text-base sm:text-sm text-[#5f6368]"
                 />
               </div>
               <div>
@@ -1269,7 +1522,7 @@ export function FreetingHomeDashboard() {
                   type="time"
                   value={newStartTime}
                   onChange={(e) => setNewStartTime(e.target.value)}
-                  className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0b57d0]"
+                  className="w-full border border-[#dadce0] rounded-xl px-3.5 py-3 text-base sm:text-sm focus:outline-none focus:border-[#0b57d0]"
                 />
               </div>
             </div>
@@ -1281,21 +1534,21 @@ export function FreetingHomeDashboard() {
                 rows={2}
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Adicione uma pauta ou descrição para os participantes"
-                className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-[#0b57d0]"
+                placeholder="Adicione uma pauta para os participantes"
+                className="w-full border border-[#dadce0] rounded-xl px-3.5 py-2.5 text-base sm:text-sm focus:outline-none focus:border-[#0b57d0]"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setShowScheduleModal(false)}
-                className="px-4 py-2 rounded-full text-sm font-medium text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
+                className="h-11 px-4 rounded-full text-sm font-medium text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium hover:bg-[#0842a0] cursor-pointer"
+                className="flex-1 sm:flex-none h-11 px-6 rounded-full bg-[#0b57d0] text-white text-sm font-semibold hover:bg-[#0842a0] cursor-pointer"
               >
                 Salvar
               </button>
@@ -1309,9 +1562,10 @@ export function FreetingHomeDashboard() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white text-[#1f1f1f] rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-6 safe-bottom shadow-2xl space-y-4 animate-sheet-up">
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-1 sm:hidden" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-full bg-[#d3e3fd] text-[#0b57d0] flex items-center justify-center">
@@ -1322,12 +1576,12 @@ export function FreetingHomeDashboard() {
               <button
                 type="button"
                 onClick={() => setShowAiNotesModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-[#444746]">
+            <p className="text-sm text-[#444746] leading-relaxed">
               Durante suas reuniões, o assistente de IA registra automaticamente
               os principais pontos discutidos, gera resumos em português e
               organiza os próximos passos da equipe.
@@ -1336,14 +1590,14 @@ export function FreetingHomeDashboard() {
               <button
                 type="button"
                 onClick={() => setShowAiNotesModal(false)}
-                className="px-4 py-2 rounded-full text-sm text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
+                className="h-11 px-4 rounded-full text-sm text-[#5f6368] hover:bg-[#f1f3f4] cursor-pointer"
               >
                 Fechar
               </button>
               <button
                 type="button"
                 onClick={handleStartInstantMeeting}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium hover:bg-[#0842a0] cursor-pointer"
+                className="flex-1 sm:flex-none h-11 px-5 rounded-full bg-[#0b57d0] text-white text-sm font-semibold hover:bg-[#0842a0] cursor-pointer"
               >
                 Iniciar reunião com IA
               </button>
@@ -1352,18 +1606,19 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* MODAL 4: Sua reunião está segura & Central de Privacidade LGPD */}
+      {/* MODAL 4: Segurança & Central de Privacidade LGPD */}
       {showSecurityModal && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white text-[#1f1f1f] rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-6 safe-bottom shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto animate-sheet-up">
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-1 sm:hidden" />
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-[#1a73e8]" />
-                Segurança & Central de Privacidade (LGPD)
+                <ShieldCheck className="w-5 h-5 text-[#1a73e8] shrink-0" />
+                <span>Segurança & Privacidade (LGPD)</span>
               </h3>
               <button
                 type="button"
@@ -1371,13 +1626,20 @@ export function FreetingHomeDashboard() {
                   setShowSecurityModal(false);
                   setLgpdFeedback(null);
                 }}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-xs text-[#444746] leading-relaxed">
-              Em conformidade com a <strong>Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD)</strong>, o FREETING aplica o princípio da minimização de dados (Art. 6º, III): você participa de reuniões sem cadastro obrigatório e sem coleta de CPF, telefone ou e-mail.
+              Em conformidade com a{" "}
+              <strong>
+                Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 —
+                LGPD)
+              </strong>
+              , o FREETING aplica o princípio da minimização de dados (Art. 6º,
+              III): você participa de reuniões sem cadastro obrigatório e sem
+              coleta de CPF, telefone ou e-mail.
             </p>
 
             <div className="p-3.5 rounded-2xl bg-[#f8f9fa] border border-[#dadce0] space-y-2.5 text-xs">
@@ -1387,7 +1649,8 @@ export function FreetingHomeDashboard() {
                     Proteção Automática de Dados Pessoais (Art. 5º, II e Art. 46)
                   </div>
                   <div className="text-[#5f6368]">
-                    Mascarar automaticamente CPFs, e-mails e telefones digitados no chat ou capturados em transcrições.
+                    Mascarar automaticamente CPFs, e-mails e telefones digitados
+                    no chat ou capturados em transcrições.
                   </div>
                 </div>
                 <input
@@ -1399,7 +1662,7 @@ export function FreetingHomeDashboard() {
                     });
                     setLgpdConsent(updated);
                   }}
-                  className="mt-1 w-4 h-4 accent-[#0b57d0]"
+                  className="mt-1 w-5 h-5 accent-[#0b57d0] shrink-0"
                 />
               </label>
             </div>
@@ -1408,22 +1671,22 @@ export function FreetingHomeDashboard() {
               <div className="font-semibold text-[#041e49]">
                 Direitos do Titular dos Dados (Art. 18 da LGPD)
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={handleExportLgpdDataPortability}
-                  className="px-3.5 py-2 rounded-full bg-white hover:bg-[#f1f3f4] text-[#0b57d0] border border-[#dadce0] font-medium flex items-center gap-1.5 cursor-pointer"
+                  className="h-10 px-3.5 rounded-full bg-white hover:bg-[#f1f3f4] text-[#0b57d0] border border-[#dadce0] font-medium flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Exportar Meus Dados (Portabilidade)
+                  Exportar Meus Dados
                 </button>
                 <button
                   type="button"
                   onClick={handleEraseAllPersonalDataLgpd}
-                  className="px-3.5 py-2 rounded-full bg-[#fce8e6] hover:bg-[#fad2cf] text-[#c5221f] font-medium flex items-center gap-1.5 cursor-pointer"
+                  className="h-10 px-3.5 rounded-full bg-[#fce8e6] hover:bg-[#fad2cf] text-[#c5221f] font-medium flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Eliminar Todos os Meus Dados
+                  Eliminar Todos os Dados
                 </button>
               </div>
               {lgpdFeedback && (
@@ -1444,7 +1707,7 @@ export function FreetingHomeDashboard() {
                   setShowSecurityModal(false);
                   setLgpdFeedback(null);
                 }}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium cursor-pointer"
+                className="w-full sm:w-auto h-11 px-6 rounded-full bg-[#0b57d0] text-white text-sm font-semibold cursor-pointer"
               >
                 Concluído
               </button>
@@ -1453,21 +1716,23 @@ export function FreetingHomeDashboard() {
         </div>
       )}
 
-      {/* BANNER DISCRETO DE TRANSPARÊNCIA E CONSENTIMENTO LGPD NO RODAPÉ */}
+      {/* BANNER DISCRETO DE TRANSPARÊNCIA E CONSENTIMENTO LGPD (Acima da barra mobile) */}
       {!lgpdConsent.acceptedPrivacyNotice && (
         <div
           role="region"
           aria-label="Aviso de Privacidade e LGPD"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[94%] bg-[#1e1f20] text-white rounded-2xl px-5 py-3.5 shadow-2xl border border-[#3c4043] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          className="fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[92%] bg-[#1e1f20] text-white rounded-2xl px-4 sm:px-5 py-3.5 shadow-2xl border border-[#3c4043] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
         >
           <div className="leading-relaxed text-[#e3e3e3]">
-            <strong className="text-white">Privacidade & LGPD:</strong> O FREETING não coleta cadastro pessoal e mantém suas gravações sob seu controle exclusivo no dispositivo.
+            <strong className="text-white">Privacidade & LGPD:</strong> O
+            FREETING não coleta cadastro pessoal e mantém suas gravações sob seu
+            controle exclusivo no dispositivo.
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowSecurityModal(true)}
-              className="px-3.5 py-1.5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-white font-medium cursor-pointer"
+              className="flex-1 sm:flex-none h-9 px-3.5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-white font-medium cursor-pointer"
             >
               Direitos LGPD
             </button>
@@ -1479,7 +1744,7 @@ export function FreetingHomeDashboard() {
                 });
                 setLgpdConsent(updated);
               }}
-              className="px-4 py-1.5 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] font-semibold cursor-pointer"
+              className="flex-1 sm:flex-none h-9 px-4 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] font-semibold cursor-pointer"
             >
               Concordar
             </button>
@@ -1492,9 +1757,10 @@ export function FreetingHomeDashboard() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className="bg-white text-[#1f1f1f] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white text-[#1f1f1f] rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 safe-bottom shadow-2xl space-y-4 animate-sheet-up">
+            <div className="w-10 h-1 rounded-full bg-[#dadce0] mx-auto mb-1 sm:hidden" />
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <Settings className="w-5 h-5 text-[#5f6368]" />
@@ -1503,13 +1769,13 @@ export function FreetingHomeDashboard() {
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                className="p-2 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="space-y-3 text-sm">
-              <div className="p-3 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
+              <div className="p-3.5 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
                 <Mic className="w-5 h-5 text-[#0b57d0]" />
                 <div>
                   <div className="font-medium">Microfone</div>
@@ -1518,7 +1784,7 @@ export function FreetingHomeDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
+              <div className="p-3.5 rounded-xl bg-[#f8f9fa] border border-[#dadce0] flex items-center gap-3">
                 <Camera className="w-5 h-5 text-[#0b57d0]" />
                 <div>
                   <div className="font-medium">Vídeo</div>
@@ -1532,7 +1798,7 @@ export function FreetingHomeDashboard() {
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-sm font-medium cursor-pointer"
+                className="w-full sm:w-auto h-11 px-6 rounded-full bg-[#0b57d0] text-white text-sm font-semibold cursor-pointer"
               >
                 Concluído
               </button>

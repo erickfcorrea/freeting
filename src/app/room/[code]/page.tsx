@@ -1,9 +1,5 @@
 import { MeetingRoomView } from "@/components/room/MeetingRoomView";
 
-export function generateStaticParams() {
-  return [{ code: "amd-wraw-qkg" }];
-}
-
 export default async function RoomPage({
   params,
 }: {

@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { ScheduledMeeting } from "@/domain/calendarSchedule";
 
 export interface StoredAiNote {
@@ -32,11 +33,13 @@ function getSqliteDb(): SqliteDatabaseLike | null {
     };
     if (!sqlite || !sqlite.DatabaseSync) return null;
 
-    const dataDir = path.join(process.cwd(), "data");
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    const baseDir = process.env.VERCEL
+      ? path.join(os.tmpdir(), "freeting-data")
+      : path.join(process.cwd(), "data");
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
     }
-    const dbPath = path.join(dataDir, "freeting.sqlite");
+    const dbPath = path.join(baseDir, "freeting.sqlite");
     const db = new sqlite.DatabaseSync(dbPath);
 
     db.exec(`

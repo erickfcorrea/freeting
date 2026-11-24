@@ -1,0 +1,19 @@
+{
+  "name": "FREETING — Videoconferências Sem Limites",
+  "short_name": "FREETING",
+  "description": "Plataforma gratuita de videoconferência, chamadas P2P e gravação sem limite de tempo.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#131314",
+  "theme_color": "#0b57d0",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/freeting-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

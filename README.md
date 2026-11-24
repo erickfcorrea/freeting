@@ -4,15 +4,16 @@
   <br />
 
   [![MIT License](https://img.shields.io/badge/License-MIT-D4AF37?style=flat-square)](LICENSE)
+  [![Hosted on Vercel](https://img.shields.io/badge/Hosted%20on-Vercel-000000?style=flat-square&logo=vercel)](https://freeting.vercel.app)
   [![LGPD Compliant](https://img.shields.io/badge/LGPD-Lei%2013.709%2F2018-0B57D0?style=flat-square)](SECURITY.md)
   [![Contributing](https://img.shields.io/badge/PRs-Welcome-10B981?style=flat-square)](CONTRIBUTING.md)
 </div>
 
 # FREETING — Videoconferências & Gravações Sem Limites
 
-O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, agendamento semanal e gravação contínua no navegador, construída para oferecer **reuniões 100% gratuitas, sem exigência de conta/login e sem limite de tempo**.
+O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, agendamento semanal e gravação contínua no navegador, construída para oferecer **reuniões 100% gratuitas, sem exigência de conta/login e sem limite de tempo** em Desktop e Mobile (PWA).
 
-🔗 **Acesso Público (Domínio Gratuito):** [https://erickfcorrea.github.io/freeting/](https://erickfcorrea.github.io/freeting/)
+🔗 **Domínio Oficial (Vercel Edge — São Paulo `gru1`):** [https://freeting.vercel.app](https://freeting.vercel.app)
 
 ---
 
@@ -25,6 +26,8 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
   - **DLP e Mascaramento Automático (Art. 5º, II e Art. 46)**: Proteção em tempo real que mascara CPFs, e-mails e telefones digitados no chat ou falados na transcrição (`src/domain/lgpdCompliance.ts`).
   - **Direitos do Titular (Art. 18)**: Central de Privacidade integrada com exportação de portabilidade em JSON e eliminação instantânea de todos os dados e gravações locais.
 - **Assistente de IA & Legendas ao Vivo em Português (`CC`)**: Transcrição em tempo real via Web Speech API, geração de resumos durante a chamada e exportação da Ata em Markdown (`.md`).
+- **Experiência Mobile-First & PWA Instalável**:
+  - Layout adaptativo `100dvh` com suporte a `safe-area-inset` (iOS/Android), barra inferior ergonômica na zona do polegar, gavetas *Bottom Sheet* deslizantes, grade retrato 50/50 e compartilhamento nativo via Web Share API (WhatsApp, Telegram, SMS).
 - **Design Moderno & Acessibilidade (WCAG 2.2 AA/AAA)**:
   - Alternância entre **Modo Claro**, **Modo Escuro Pro** e **Modo Alto Contraste (WCAG AAA)**.
   - Controle de escala tipográfica (`100%`, `110%`, `120%`), suporte a leitores de tela (`aria-live`) e atalhos globais de teclado.

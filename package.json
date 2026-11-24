@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": false,
   "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "description": "FREETING — Plataforma de videoconferência com duração de reunião e gravação 100% ilimitadas",
   "scripts": {
     "dev": "next dev",

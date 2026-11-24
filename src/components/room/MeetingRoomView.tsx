@@ -32,12 +32,12 @@ import {
   Play,
   Square,
   Download,
-  Clock,
   FileText,
   Edit3,
   Eye,
   Keyboard,
   Contrast,
+  Share2,
 } from "lucide-react";
 import { formatShareableLink } from "@/domain/roomCode";
 import {
@@ -79,7 +79,8 @@ const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "😂", "😮"];
 const SIMULATED_BOT_PROFILES = [
   {
     name: "Dra. Camila Mendes",
-    greeting: "Olá! Já estou conectada na sala, áudio e vídeo funcionando perfeitamente.",
+    greeting:
+      "Olá! Já estou conectada na sala, áudio e vídeo funcionando perfeitamente.",
     autoReplies: [
       "Perfeito! Estou acompanhando a apresentação.",
       "Concordo totalmente com esse ponto.",
@@ -106,11 +107,6 @@ const SIMULATED_BOT_PROFILES = [
 
 export type StageLayoutMode = "auto" | "grid" | "spotlight";
 
-/**
- * RemoteParticipantMedia:
- * Binds and plays incoming WebRTC video and audio tracks from remote participants
- * so real people in different browsers/devices can see and hear each other.
- */
 function RemoteParticipantMedia({
   stream,
   isCameraOff,
@@ -141,7 +137,6 @@ function RemoteParticipantMedia({
 
   return (
     <>
-      {/* Always render remote audio element (unmuted!) so voice plays continuously */}
       {stream && <audio ref={audioRef} autoPlay playsInline muted={false} />}
       {hasVideoTracks && (
         <video
@@ -166,8 +161,6 @@ export function MeetingRoomView({
 }) {
   const router = useRouter();
 
-  // If the user opened a shared link or typed a code (initialIsCreator = false),
-  // show the Pre-Join Lobby ("Pronto para participar?") first just like Google Meet!
   const [inPreJoinLobby, setInPreJoinLobby] = useState<boolean>(
     !initialIsCreator
   );
@@ -177,32 +170,32 @@ export function MeetingRoomView({
   const [isCreatorRole, setIsCreatorRole] =
     useState<boolean>(initialIsCreator);
 
-  // Clock & Elapsed Duration
   const [clockText, setClockText] = useState("18:32");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Media & Accessibility States
   const [isMuted, setIsMuted] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(true);
-  const [isVirtualCamera, setIsVirtualCamera] = useState(false);
+  const [, setIsVirtualCamera] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
-  const [lgpdAutoMask, setLgpdAutoMask] = useState<boolean>(
-    () => loadLgpdConsent().autoMaskPersonalData,
+  const [lgpdAutoMask, setLgpdAutoMask] = useState<boolean>(() =>
+    loadLgpdConsent().autoMaskPersonalData
   );
   const [isCallEnded, setIsCallEnded] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<StageLayoutMode>("auto");
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showMobileToolsSheet, setShowMobileToolsSheet] = useState(false);
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [a11yLiveText, setA11yLiveText] = useState(
     `Conectado à sala ${roomCode}.`
   );
 
-  // Overlays & Cards: ONLY the Creator sees "Sua reunião está pronta" automatically!
+  // Overlays & Cards
   const [showReadyCard, setShowReadyCard] =
     useState<boolean>(initialIsCreator);
   const [showPtToastCard, setShowPtToastCard] =
@@ -225,7 +218,7 @@ export function MeetingRoomView({
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
   const localPeerIdRef = useRef<string>(
-    `peer_${Math.random().toString(36).slice(2, 9)}`,
+    `peer_${Math.random().toString(36).slice(2, 9)}`
   );
 
   // Participants, Chat, Captions, Reactions, AI
@@ -260,12 +253,11 @@ export function MeetingRoomView({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponses, setAiResponses] = useState<AiAssistantResponse[]>([]);
 
-  // Recording State
   const [recordingSession, setRecordingSession] =
     useState<UnlimitedRecordingSession | null>(null);
   const [recordingTickMs, setRecordingTickMs] = useState<number>(Date.now());
   const [savedRecordings, setSavedRecordings] = useState<StoredRecordingMeta[]>(
-    [],
+    []
   );
 
   const showToast = useCallback((msg: string) => {
@@ -284,18 +276,16 @@ export function MeetingRoomView({
     }
   }, [onLeaveToHome, router]);
 
-  // Shareable URL that actually points to this live deployment
   const realShareableLink = formatShareableLink(
     roomCode,
     typeof window !== "undefined" ? window.location.origin : undefined
   );
 
-  // Update clock and call duration every second
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
       setClockText(
-        now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
       );
     };
     updateClock();
@@ -318,7 +308,6 @@ export function MeetingRoomView({
     refreshVault();
   }, [refreshVault]);
 
-  // Connect Dual-Transport WebRTC Engine (PeerJS Cloud + BroadcastChannel) ONCE the user enters the room (after Pre-Join Lobby)
   useEffect(() => {
     if (inPreJoinLobby) return;
 
@@ -329,7 +318,6 @@ export function MeetingRoomView({
       ? "Organizador"
       : `Participante ${localId.slice(-3).toUpperCase()}`;
 
-    // Update our local tile name
     setParticipants((prev) =>
       prev.map((p) =>
         p.isLocal
@@ -350,7 +338,6 @@ export function MeetingRoomView({
         const isHostNow = resolvedRole === "HOST";
         setIsCreatorRole(isHostNow);
         if (!isHostNow) {
-          // If another user is already the Host of this room, hide the Creator invite card!
           setShowReadyCard(false);
           setShowPtToastCard(false);
         }
@@ -377,7 +364,6 @@ export function MeetingRoomView({
             if (!payload.isReply) {
               showToast(`${payload.participant.name} entrou na reunião`);
             }
-            // Automatically hide the initial invite card once another participant is in the room
             setShowReadyCard(false);
             setShowPtToastCard(false);
             return [
@@ -391,8 +377,8 @@ export function MeetingRoomView({
         } else if (payload.type === "PEER_STATE_UPDATE") {
           setParticipants((prev) =>
             prev.map((p) =>
-              p.id === payload.participantId ? { ...p, ...payload.patch } : p,
-            ),
+              p.id === payload.participantId ? { ...p, ...payload.patch } : p
+            )
           );
         } else if (payload.type === "PEER_LEAVE") {
           setParticipants((prev) => {
@@ -418,7 +404,7 @@ export function MeetingRoomView({
       },
       onRemoteStream: (peerId, stream) => {
         setParticipants((prev) =>
-          prev.map((p) => (p.id === peerId ? { ...p, stream } : p)),
+          prev.map((p) => (p.id === peerId ? { ...p, stream } : p))
         );
       },
     });
@@ -447,7 +433,6 @@ export function MeetingRoomView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inPreJoinLobby, roomCode]);
 
-  // Cleanup all streams on unmount
   useEffect(() => {
     return () => {
       if (stopVirtualCamRef.current) {
@@ -474,7 +459,7 @@ export function MeetingRoomView({
         el.play().catch(() => {});
       }
     },
-    [isCameraOff],
+    [isCameraOff]
   );
 
   const bindLobbyVideoRef = useCallback(
@@ -496,19 +481,18 @@ export function MeetingRoomView({
         el.play().catch(() => {});
       }
     },
-    [isScreenSharing],
+    [isScreenSharing]
   );
 
   const spawnReaction = (emoji: string, senderName = "Você") => {
     const id = `react_${Date.now()}_${Math.random()}`;
-    const leftPercent = 25 + Math.floor(Math.random() * 50);
+    const leftPercent = 20 + Math.floor(Math.random() * 60);
     setReactions((prev) => [...prev, { id, emoji, senderName, leftPercent }]);
     setTimeout(() => {
       setReactions((prev) => prev.filter((r) => r.id !== id));
     }, 2600);
   };
 
-  // Toggle Microphone
   const handleToggleMic = useCallback(async () => {
     if (isMuted) {
       try {
@@ -516,7 +500,6 @@ export function MeetingRoomView({
           audio: true,
         });
         if (localStreamRef.current) {
-          // Remove old ended audio tracks and add live audio track
           localStreamRef.current
             .getAudioTracks()
             .forEach((old) => localStreamRef.current?.removeTrack(old));
@@ -538,8 +521,8 @@ export function MeetingRoomView({
       });
       setParticipants((prev) =>
         prev.map((p) =>
-          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p,
-        ),
+          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p
+        )
       );
     } else {
       localStreamRef.current
@@ -553,13 +536,12 @@ export function MeetingRoomView({
       });
       setParticipants((prev) =>
         prev.map((p) =>
-          p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p,
-        ),
+          p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p
+        )
       );
     }
   }, [isMuted, showToast]);
 
-  // Toggle Camera
   const handleToggleCamera = useCallback(async () => {
     if (isCameraOff) {
       let videoStream: MediaStream | null = null;
@@ -568,7 +550,7 @@ export function MeetingRoomView({
 
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 },
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: !isMuted,
         });
       } catch {
@@ -578,7 +560,6 @@ export function MeetingRoomView({
         usingVirtual = true;
       }
 
-      // Preserve existing live audio tracks if already unmuted
       if (
         localStreamRef.current &&
         localStreamRef.current.getAudioTracks().length > 0 &&
@@ -598,7 +579,7 @@ export function MeetingRoomView({
         isCameraOff: false,
       });
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p)),
+        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
       );
 
       if (localVideoElRef.current && videoStream) {
@@ -610,11 +591,7 @@ export function MeetingRoomView({
         lobbyVideoElRef.current.play().catch(() => {});
       }
 
-      showToast(
-        usingVirtual
-          ? "Câmera Studio HD ativada (sem webcam física detectada)"
-          : "Câmera ativada"
-      );
+      showToast(usingVirtual ? "Câmera Studio HD ativada" : "Câmera ativada");
     } else {
       if (stopVirtualCamRef.current) {
         stopVirtualCamRef.current();
@@ -630,15 +607,22 @@ export function MeetingRoomView({
         isCameraOff: true,
       });
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p)),
+        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p))
       );
       showToast("Câmera desativada");
     }
   }, [isCameraOff, isMuted, displayName, roomCode, showToast]);
 
-  // Toggle Screen Share
   const handleToggleScreenShare = async () => {
     if (!isScreenSharing) {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getDisplayMedia !== "function"
+      ) {
+        showToast("Compartilhamento de tela não suportado neste navegador mobile");
+        return;
+      }
       try {
         const displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
@@ -671,7 +655,7 @@ export function MeetingRoomView({
           screenVideoElRef.current.srcObject = displayStream;
           screenVideoElRef.current.play().catch(() => {});
         }
-        showToast("Apresentando sua tela para todos na sala");
+        showToast("Apresentando sua tela");
       } catch {
         showToast("Compartilhamento de tela cancelado");
       }
@@ -690,7 +674,6 @@ export function MeetingRoomView({
     }
   };
 
-  // Start / Pause / Resume / Stop Recording
   const handleStartUnlimitedRecording = useCallback(async () => {
     try {
       const recorder = new LiveUnlimitedMediaRecorder(roomCode, (updated) => {
@@ -768,7 +751,6 @@ export function MeetingRoomView({
     showToast("✓ Gravação concluída e salva!");
   }, [roomCode, captions, showToast, refreshVault]);
 
-  // Toggle Live Captions (pt-BR)
   const handleToggleCaptions = useCallback(() => {
     const next = !isCaptionsOn;
     setIsCaptionsOn(next);
@@ -787,9 +769,7 @@ export function MeetingRoomView({
 
       if (typeof window !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const SpeechRec =
-          (window as any).SpeechRecognition ||
-          (window as any).webkitSpeechRecognition;
+        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (SpeechRec) {
           try {
             const recognition = new SpeechRec();
@@ -803,7 +783,7 @@ export function MeetingRoomView({
                 const rawSpoken = String(lastResult[0].transcript).trim();
                 const spokenText = maskPersonalDataInText(
                   rawSpoken,
-                  lgpdAutoMask,
+                  lgpdAutoMask
                 );
                 if (spokenText) {
                   const capEntry: RoomCaptionEntry = {
@@ -843,7 +823,6 @@ export function MeetingRoomView({
     }
   }, [isCaptionsOn, displayName, clockText, lgpdAutoMask, showToast]);
 
-  // Global Accessible Keyboard Shortcuts
   useEffect(() => {
     if (inPreJoinLobby) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -889,51 +868,6 @@ export function MeetingRoomView({
     recordingSession,
   ]);
 
-  // Simulate adding a participant for quick testing
-  const handleAddSimulatedParticipant = () => {
-    const profile =
-      SIMULATED_BOT_PROFILES[
-        (participants.length - 1) % SIMULATED_BOT_PROFILES.length
-      ];
-    const botId = `bot_${Date.now()}`;
-    const newBot: RoomParticipant = {
-      id: botId,
-      name: profile.name,
-      role: "PARTICIPANT",
-      isLocal: false,
-      isSimulated: true,
-      isMuted: false,
-      isCameraOff: true,
-      isScreenSharing: false,
-      isHandRaised: false,
-      isSpeaking: true,
-      avatarColor: pickAvatarColor(profile.name),
-      joinedAtIso: new Date().toISOString(),
-    };
-    setParticipants((prev) => [...prev, newBot]);
-    setShowReadyCard(false);
-    setShowPtToastCard(false);
-    showToast(`${profile.name} entrou na reunião`);
-
-    const botMsg: RoomChatMessage = {
-      id: `msg_${Date.now()}`,
-      senderId: botId,
-      senderName: profile.name,
-      text: profile.greeting,
-      timestamp: clockText,
-    };
-    setChatMessages((prev) => [...prev, botMsg]);
-
-    const botCaption: RoomCaptionEntry = {
-      id: `cap_${Date.now()}`,
-      speakerName: profile.name,
-      text: profile.greeting,
-      timestamp: clockText,
-    };
-    setCaptions((prev) => [...prev, botCaption]);
-  };
-
-  // Send AI Assistant Prompt
   const handleSendAiPrompt = (e?: React.FormEvent, customPrompt?: string) => {
     e?.preventDefault();
     const query = (customPrompt ?? aiPrompt).trim();
@@ -953,7 +887,6 @@ export function MeetingRoomView({
     showToast("Resumo da IA gerado com sucesso");
   };
 
-  // Send Chat Message (broadcasts over BOTH PeerJS DataChannel AND BroadcastChannel!)
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatDraft.trim()) return;
@@ -1055,38 +988,66 @@ export function MeetingRoomView({
     }
   };
 
+  const handleNativeShareRoomLink = async () => {
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function"
+    ) {
+      try {
+        await navigator.share({
+          title: "Convite de Reunião FREETING",
+          text: `Entre na nossa sala de reunião (${roomCode}):`,
+          url: realShareableLink,
+        });
+        return;
+      } catch {
+        // Fallback to copy
+      }
+    }
+    await handleCopyRoomLink();
+  };
+
+  const handleToggleHandRaise = () => {
+    const next = !isHandRaised;
+    setIsHandRaised(next);
+    showToast(next ? "✋ Mão levantada" : "Mão abaixada");
+    webrtcEngineRef.current?.updateLocalParticipantMeta({
+      isHandRaised: next,
+    });
+    setParticipants((prev) =>
+      prev.map((p) => (p.isLocal ? { ...p, isHandRaised: next } : p))
+    );
+  };
+
   const activeRecDurationSec = recordingSession
     ? Math.floor(
         getEffectiveRecordingDurationMs(recordingSession, recordingTickMs) /
-          1000,
+          1000
       )
     : 0;
 
   // ============================================================================
-  // SCREEN 1: PRE-JOIN GREEN ROOM LOBBY ("Pronto para participar?")
-  // Shown whenever a guest opens a shared link or joins via code!
+  // SCREEN 1: PRE-JOIN GREEN ROOM LOBBY ("Pronto para participar?") — Mobile-First
   // ============================================================================
   if (inPreJoinLobby) {
     return (
-      <div className="min-h-screen bg-white text-[#1f1f1f] flex flex-col">
-        {/* Clean Header */}
-        <header className="h-16 px-6 flex items-center justify-between border-b border-[#dadce0]/60">
+      <div className="min-h-[100dvh] safe-top safe-bottom bg-white text-[#1f1f1f] flex flex-col">
+        <header className="h-14 sm:h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#dadce0]/60 shrink-0">
           <button
             type="button"
             onClick={navigateBackHome}
-            className="text-xl font-bold tracking-wider text-[#B8860B] cursor-pointer"
+            className="text-lg sm:text-xl font-bold tracking-wider text-[#B8860B] cursor-pointer"
           >
             FREETING
           </button>
-          <span className="text-xs text-[#5f6368] font-mono">
-            Sala: {roomCode}
+          <span className="text-xs text-[#5f6368] font-mono bg-[#f1f3f4] px-3 py-1 rounded-full">
+            {roomCode}
           </span>
         </header>
 
-        {/* Main Pre-Join Lobby Content */}
-        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* Left: 16:9 Camera & Microphone Preview Box */}
-          <div className="lg:col-span-7 bg-[#202124] rounded-2xl aspect-video relative overflow-hidden flex items-center justify-center shadow-xl">
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
+          {/* Camera & Mic Preview Box — 4:3 on Mobile so CTA stays visible without scrolling! */}
+          <div className="lg:col-span-7 bg-[#202124] rounded-3xl aspect-[4/3] sm:aspect-video relative overflow-hidden flex items-center justify-center shadow-xl">
             {!isCameraOff ? (
               <video
                 ref={bindLobbyVideoRef}
@@ -1096,15 +1057,16 @@ export function MeetingRoomView({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="text-center space-y-3">
-                <div className="w-20 h-20 rounded-full bg-[#0b57d0] text-white text-2xl font-semibold flex items-center justify-center mx-auto shadow-md">
+              <div className="text-center space-y-2.5 px-4">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#0b57d0] text-white text-2xl font-semibold flex items-center justify-center mx-auto shadow-md">
                   {(displayName.trim() || "P").charAt(0).toUpperCase()}
                 </div>
-                <p className="text-sm text-[#e3e3e3]">A câmera está desligada</p>
+                <p className="text-xs sm:text-sm text-[#e3e3e3]">
+                  A câmera está desligada
+                </p>
               </div>
             )}
 
-            {/* Bottom Floating Mic & Camera Controls inside Preview */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
               <button
                 type="button"
@@ -1112,8 +1074,8 @@ export function MeetingRoomView({
                 aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
                   isMuted
-                    ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
-                    : "bg-[#3c4043]/90 text-white hover:bg-[#4e5256]"
+                    ? "bg-[#ea4335] text-white active:bg-[#d93025]"
+                    : "bg-[#3c4043]/90 text-white active:bg-[#4e5256]"
                 }`}
               >
                 {isMuted ? (
@@ -1128,8 +1090,8 @@ export function MeetingRoomView({
                 aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
                   isCameraOff
-                    ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
-                    : "bg-[#3c4043]/90 text-white hover:bg-[#4e5256]"
+                    ? "bg-[#ea4335] text-white active:bg-[#d93025]"
+                    : "bg-[#3c4043]/90 text-white active:bg-[#4e5256]"
                 }`}
               >
                 {isCameraOff ? (
@@ -1141,41 +1103,43 @@ export function MeetingRoomView({
             </div>
           </div>
 
-          {/* Right: "Pronto para participar?" Form */}
+          {/* Join Form — 16px input & Full-width Mobile CTA */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               setInPreJoinLobby(false);
             }}
-            className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left space-y-5"
+            className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left space-y-4 sm:space-y-5 w-full"
           >
             <div>
-              <h1 className="text-2xl sm:text-3xl font-normal text-[#1f1f1f]">
+              <h1 className="text-xl sm:text-3xl font-normal text-[#1f1f1f]">
                 Pronto para participar?
               </h1>
-              <p className="text-sm text-[#5f6368] mt-1">
-                Você está entrando na reunião <code className="font-mono font-semibold text-[#1f1f1f]">{roomCode}</code>
+              <p className="text-xs sm:text-sm text-[#5f6368] mt-1">
+                Sala{" "}
+                <code className="font-mono font-semibold text-[#1f1f1f]">
+                  {roomCode}
+                </code>
               </p>
             </div>
 
             <div className="w-full max-w-sm">
-              <label className="block text-xs font-medium text-[#5f6368] mb-1.5">
+              <label className="block text-xs font-medium text-[#5f6368] mb-1.5 text-left">
                 Qual é o seu nome?
               </label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Digite seu nome para entrar na sala"
-                autoFocus
-                className="w-full border border-[#dadce0] focus:border-[#0b57d0] focus:ring-2 focus:ring-[#0b57d0]/20 rounded-xl px-4 py-3 text-sm text-[#1f1f1f] focus:outline-none"
+                placeholder="Digite seu nome para entrar"
+                className="w-full border border-[#dadce0] focus:border-[#0b57d0] focus:ring-2 focus:ring-[#0b57d0]/20 rounded-2xl px-4 py-3 text-base text-[#1f1f1f] focus:outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full max-w-sm pt-1">
               <button
                 type="submit"
-                className="h-12 px-8 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-semibold shadow-md transition-colors cursor-pointer"
+                className="h-12 px-8 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] active:scale-[0.99] text-white text-sm font-semibold shadow-md transition-all cursor-pointer flex-1"
               >
                 Participar agora
               </button>
@@ -1198,9 +1162,11 @@ export function MeetingRoomView({
   // ============================================================================
   if (isCallEnded) {
     return (
-      <div className="min-h-screen bg-[#131314] text-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-lg w-full bg-[#1e1f20] border border-[#3c4043] rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <h1 className="text-2xl font-normal">Você saiu da reunião</h1>
+      <div className="min-h-[100dvh] safe-top safe-bottom bg-[#131314] text-white flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="max-w-lg w-full bg-[#1e1f20] border border-[#3c4043] rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl">
+          <h1 className="text-xl sm:text-2xl font-normal">
+            Você saiu da reunião
+          </h1>
           <p className="text-sm text-[#c4c7c5]">
             Sala <code className="text-white font-mono">{roomCode}</code> •
             Duração:{" "}
@@ -1209,28 +1175,28 @@ export function MeetingRoomView({
             </strong>
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 pt-2">
             <button
               type="button"
               onClick={() => setIsCallEnded(false)}
-              className="px-5 py-2.5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-sm font-medium cursor-pointer"
+              className="h-11 px-5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-sm font-medium cursor-pointer"
             >
               Voltar para a sala
             </button>
             <button
               type="button"
               onClick={handleExportMarkdownMinutes}
-              className="px-5 py-2.5 rounded-full bg-[#004a77] hover:bg-[#00639b] text-[#c2e7ff] text-sm font-medium flex items-center gap-2 cursor-pointer"
+              className="h-11 px-5 rounded-full bg-[#004a77] hover:bg-[#00639b] text-[#c2e7ff] text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
-              Baixar resumo da reunião
+              Baixar resumo
             </button>
             <button
               type="button"
               onClick={navigateBackHome}
-              className="px-6 py-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] text-sm font-semibold cursor-pointer"
+              className="h-11 px-6 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] text-sm font-semibold cursor-pointer"
             >
-              Voltar à tela inicial
+              Tela inicial
             </button>
           </div>
         </div>
@@ -1239,11 +1205,11 @@ export function MeetingRoomView({
   }
 
   // ============================================================================
-  // SCREEN 3: ACTIVE MEETING ROOM
+  // SCREEN 3: ACTIVE MEETING ROOM — 100dvh Mobile-First & Full Desktop
   // ============================================================================
   return (
     <div
-      className={`h-screen w-screen flex flex-col justify-between overflow-hidden select-none ${
+      className={`h-[100dvh] max-h-[100dvh] w-full safe-top safe-bottom flex flex-col justify-between overflow-hidden select-none ${
         highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
       }`}
     >
@@ -1252,46 +1218,53 @@ export function MeetingRoomView({
       </div>
 
       {statusToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-5 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#81c995]" />
-          <span>{statusToast}</span>
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-4 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#81c995] shrink-0" />
+          <span className="truncate">{statusToast}</span>
         </div>
       )}
 
-      {/* TOP BAR */}
-      <header className="h-14 px-5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-[#e3e3e3]">
+      {/* TOP BAR — Compact & Touch-Friendly on Mobile */}
+      <header className="h-13 sm:h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="hidden sm:inline text-sm font-medium text-[#e3e3e3]">
             {clockText}
           </span>
-          <span className="text-[#5f6368]">|</span>
-          <span className="text-sm font-medium text-[#e3e3e3] tracking-wide">
+          <span className="hidden sm:inline text-[#5f6368]">|</span>
+          <span className="text-xs sm:text-sm font-semibold sm:font-medium text-[#e3e3e3] tracking-wide truncate">
             {roomCode}
           </span>
           <button
             type="button"
             onClick={() => setShowReadyCard((v) => !v)}
             title="Detalhes e link da reunião"
-            aria-label="Exibir ou ocultar cartão de detalhes da sala"
-            className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+            aria-label="Detalhes da sala"
+            className="w-9 h-9 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] flex items-center justify-center shrink-0 cursor-pointer"
           >
             <Info className="w-4 h-4" />
           </button>
 
+          {/* Mobile 1-Tap Native Share Button (WhatsApp / Telegram / Copy) */}
+          <button
+            type="button"
+            onClick={handleNativeShareRoomLink}
+            title="Compartilhar link da sala"
+            aria-label="Compartilhar link da sala"
+            className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] text-[#a8c7fa] flex items-center justify-center shrink-0 cursor-pointer"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+
           {/* Active Recording Pill */}
           {recordingSession && (
-            <div className="flex items-center gap-2 bg-[#3c1917] border border-[#f28b82]/50 text-[#f28b82] rounded-full px-3.5 py-1 text-xs font-medium animate-pulse">
+            <div className="flex items-center gap-1.5 bg-[#3c1917] border border-[#f28b82]/50 text-[#f28b82] rounded-full px-2.5 sm:px-3.5 py-1 text-[11px] sm:text-xs font-medium animate-pulse shrink-0">
               <span className="w-2 h-2 rounded-full bg-[#ea4335]" />
               <span>
-                {recordingSession.state === "PAUSED" ? "Pausado" : "Gravando"}{" "}
-                {formatUnlimitedDuration(activeRecDurationSec)}
+                {formatUnlimitedDuration(activeRecDurationSec, false)}
               </span>
               <button
                 type="button"
                 onClick={handlePauseResumeRecording}
-                title={
-                  recordingSession.state === "PAUSED" ? "Retomar" : "Pausar"
-                }
                 className="p-0.5 hover:text-white cursor-pointer"
               >
                 {recordingSession.state === "PAUSED" ? (
@@ -1303,7 +1276,6 @@ export function MeetingRoomView({
               <button
                 type="button"
                 onClick={handleStopAndDownloadRecording}
-                title="Parar gravação"
                 className="p-0.5 hover:text-white cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
@@ -1313,7 +1285,7 @@ export function MeetingRoomView({
         </div>
 
         {/* Right Top Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -1321,12 +1293,12 @@ export function MeetingRoomView({
               showToast(
                 !highContrastMode
                   ? "Alto contraste ativado"
-                  : "Alto contraste desativado",
+                  : "Alto contraste desativado"
               );
             }}
-            title="Alternar Modo Alto Contraste"
+            title="Alto Contraste"
             aria-label="Alternar Alto Contraste"
-            className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
+            className={`hidden sm:flex w-8 h-8 rounded-full items-center justify-center cursor-pointer ${
               highContrastMode
                 ? "bg-yellow-400 text-black"
                 : "bg-[#282a2c] hover:bg-[#3c4043] text-[#c4c7c5]"
@@ -1340,9 +1312,24 @@ export function MeetingRoomView({
             onClick={() => setShowShortcutsModal(true)}
             title="Atalhos de Teclado (?)"
             aria-label="Abrir guia de atalhos de teclado"
-            className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
+            className="hidden md:flex w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] items-center justify-center text-[#c4c7c5] cursor-pointer"
           >
             <Keyboard className="w-4 h-4" />
+          </button>
+
+          {/* Mobile Quick Chat Button in Header */}
+          <button
+            type="button"
+            onClick={() =>
+              setActiveDrawer((d) => (d === "chat" ? null : "chat"))
+            }
+            aria-label="Abrir chat"
+            className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] flex items-center justify-center text-[#e3e3e3] relative cursor-pointer"
+          >
+            <MessageSquare className="w-4 h-4" />
+            {chatMessages.length > 1 && (
+              <span className="w-2 h-2 rounded-full bg-[#a8c7fa] absolute top-1.5 right-1.5" />
+            )}
           </button>
 
           <button
@@ -1351,7 +1338,7 @@ export function MeetingRoomView({
               setActiveDrawer((d) => (d === "people" ? null : "people"))
             }
             aria-label={`Participantes na sala: ${participants.length}`}
-            className="flex items-center gap-2 bg-[#282a2c] hover:bg-[#3c4043] rounded-full px-3 py-1.5 cursor-pointer"
+            className="flex items-center gap-1.5 bg-[#282a2c] hover:bg-[#3c4043] rounded-full px-3 h-9 cursor-pointer"
           >
             <Users className="w-4 h-4 text-[#a8c7fa]" />
             <span className="text-xs font-semibold text-[#e3e3e3]">
@@ -1366,29 +1353,33 @@ export function MeetingRoomView({
             }
             title="Gravações e atividades"
             aria-label="Gravações e atividades"
-            className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
+            className="hidden sm:flex w-9 h-9 rounded-full bg-[#282a2c] hover:bg-[#3c4043] items-center justify-center text-[#c4c7c5] cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* MAIN VIDEO STAGE + FLOATING CARDS + SIDE DRAWER */}
-      <div className="flex-1 px-4 py-1 flex gap-3 overflow-hidden relative">
-        {/* Dedicated Screen Share Stage when presenting */}
+      {/* MAIN VIDEO STAGE + FLOATING CARDS + ADAPTIVE DRAWER */}
+      <div
+        className={`flex-1 px-2.5 sm:px-4 py-1 flex ${
+          isScreenSharing ? "flex-col lg:flex-row" : "flex-row"
+        } gap-2.5 sm:gap-3 overflow-hidden relative min-h-0`}
+      >
+        {/* Screen Share Stage */}
         {isScreenSharing && (
-          <div className="flex-1 bg-[#0d1520] border-2 border-[#a8c7fa]/40 rounded-2xl relative flex flex-col overflow-hidden">
-            <div className="bg-[#1e1f20]/90 px-4 py-2 flex items-center justify-between border-b border-[#3c4043]">
-              <span className="text-xs font-medium text-[#a8c7fa] flex items-center gap-2">
-                <MonitorUp className="w-4 h-4" />
-                Você está apresentando sua tela para todos
+          <div className="flex-1 bg-[#0d1520] border-2 border-[#a8c7fa]/40 rounded-2xl relative flex flex-col overflow-hidden min-h-0">
+            <div className="bg-[#1e1f20]/90 px-3 sm:px-4 py-2 flex items-center justify-between border-b border-[#3c4043]">
+              <span className="text-xs font-medium text-[#a8c7fa] flex items-center gap-2 truncate">
+                <MonitorUp className="w-4 h-4 shrink-0" />
+                Apresentando sua tela
               </span>
               <button
                 type="button"
                 onClick={handleToggleScreenShare}
-                className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold cursor-pointer"
+                className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shrink-0 cursor-pointer"
               >
-                Parar apresentação
+                Parar
               </button>
             </div>
             <video
@@ -1396,22 +1387,26 @@ export function MeetingRoomView({
               autoPlay
               playsInline
               muted
-              className="flex-1 w-full h-full object-contain bg-black"
+              className="flex-1 w-full h-full object-contain bg-black min-h-0"
             />
           </div>
         )}
 
-        {/* Participant Video Stage Grid */}
+        {/* Portrait-Aware Mobile & Desktop Video Stage Grid */}
         <div
           className={`${
-            isScreenSharing ? "w-72 shrink-0 flex flex-col" : "flex-1 grid"
-          } gap-3 h-full ${
+            isScreenSharing
+              ? "h-28 lg:h-full lg:w-72 shrink-0 flex flex-row lg:flex-col overflow-x-auto no-scrollbar"
+              : "flex-1 grid min-h-0"
+          } gap-2.5 sm:gap-3 h-full ${
             !isScreenSharing &&
             (layoutMode === "spotlight" || participants.length === 1
-              ? "grid-cols-1"
+              ? "grid-cols-1 grid-rows-1"
               : participants.length === 2
-                ? "grid-cols-1 md:grid-cols-2"
-                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")
+              ? "grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1"
+              : participants.length <= 4
+              ? "grid-cols-2 grid-rows-2"
+              : "grid-cols-2 lg:grid-cols-3")
           }`}
         >
           {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
@@ -1427,14 +1422,18 @@ export function MeetingRoomView({
               return (
                 <div
                   key={participant.id}
-                  className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group flex-1 ${
+                  className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
+                    isScreenSharing
+                      ? "w-40 lg:w-full h-full shrink-0"
+                      : "w-full h-full min-h-0"
+                  } ${
                     highContrastMode
                       ? "bg-[#0a192f] border-2 border-yellow-400"
                       : "bg-[#1b3a6b] border border-white/10"
                   }`}
                 >
                   {/* Top-Right Mic Status / Equalizer Badge */}
-                  <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1.5">
+                  <div className="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 z-10 flex items-center gap-1.5">
                     <div
                       className={`w-7 h-7 rounded-full flex items-center justify-center ${
                         participant.isMuted
@@ -1456,9 +1455,9 @@ export function MeetingRoomView({
 
                   {/* Raised Hand Badge */}
                   {participant.isHandRaised && (
-                    <div className="absolute top-3.5 left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md">
-                      <Hand className="w-3.5 h-3.5" />
-                      Mão levantada
+                    <div className="absolute top-2.5 left-2.5 sm:top-3.5 sm:left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 shadow-md">
+                      <Hand className="w-3 h-3" />
+                      <span>Mão levantada</span>
                     </div>
                   )}
 
@@ -1484,7 +1483,7 @@ export function MeetingRoomView({
                     <div className="relative flex items-center justify-center">
                       <div
                         style={{ backgroundColor: participant.avatarColor }}
-                        className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg transition-transform ${
+                        className={`w-18 h-18 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-semibold text-white shadow-lg transition-transform ${
                           !participant.isMuted
                             ? "ring-4 ring-[#8ab4f8]/70 scale-105"
                             : ""
@@ -1493,9 +1492,9 @@ export function MeetingRoomView({
                         {participant.name.charAt(0).toUpperCase()}
                       </div>
 
-                      {/* Center Hover Action Pill across Avatar */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-[#202124]/75 hover:bg-[#202124]/95 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md transition-opacity">
+                      {/* Desktop Hover Action Pill */}
+                      <div className="hidden sm:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-[#202124]/85 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md">
                           <button
                             type="button"
                             onClick={() => {
@@ -1513,37 +1512,21 @@ export function MeetingRoomView({
                               }
                             }}
                             title="Tela cheia"
-                            aria-label="Alternar tela cheia"
                             className="hover:text-white cursor-pointer"
                           >
                             <Maximize2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={() =>
                               setLayoutMode((m) =>
                                 m === "spotlight" ? "auto" : "spotlight"
-                              );
-                              showToast(
-                                layoutMode === "spotlight"
-                                  ? "Layout em grade restaurado"
-                                  : `${participant.name} fixado na tela principal`
-                              );
-                            }}
+                              )
+                            }
                             title="Fixar em destaque"
-                            aria-label="Fixar participante na tela principal"
                             className="hover:text-white cursor-pointer"
                           >
                             <Pin className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowMoreMenu((v) => !v)}
-                            title="Mais opções"
-                            aria-label="Mais opções do participante"
-                            className="hover:text-white cursor-pointer"
-                          >
-                            <MoreVertical className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1551,9 +1534,9 @@ export function MeetingRoomView({
                   ) : null}
 
                   {/* Bottom-left Participant Nameplate */}
-                  <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
-                    <span>{participant.name}</span>
-                    <span className="text-[10px] text-[#a8c7fa]">
+                  <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3.5 max-w-[85%] bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium text-white flex items-center gap-1.5 truncate">
+                    <span className="truncate">{participant.name}</span>
+                    <span className="hidden sm:inline text-[10px] text-[#a8c7fa] shrink-0">
                       •{" "}
                       {participant.role === "HOST"
                         ? "Organizador"
@@ -1566,19 +1549,19 @@ export function MeetingRoomView({
           )}
         </div>
 
-        {/* FLOATING OVERLAY: "Sua reunião está pronta" (Shown ONLY to the Host/Creator or when (i) is clicked) */}
+        {/* FLOATING OVERLAY: "Sua reunião está pronta" (Responsive on Mobile & Desktop) */}
         {showReadyCard && (
-          <div className="absolute bottom-3 left-6 z-30 w-[330px] flex flex-col">
-            <div className="bg-white text-[#1f1f1f] rounded-2xl p-5 shadow-2xl">
-              <div className="flex items-center justify-between mb-3.5">
-                <h2 className="text-base font-medium text-[#1f1f1f]">
+          <div className="absolute bottom-2 left-2.5 right-2.5 sm:bottom-3 sm:left-6 sm:right-auto z-30 sm:w-[330px] flex flex-col">
+            <div className="bg-white text-[#1f1f1f] rounded-2xl p-4 sm:p-5 shadow-2xl">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm sm:text-base font-semibold text-[#1f1f1f]">
                   Sua reunião está pronta
                 </h2>
                 <button
                   type="button"
                   onClick={() => setShowReadyCard(false)}
                   aria-label="Fechar cartão de convite"
-                  className="p-1 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                  className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1586,19 +1569,18 @@ export function MeetingRoomView({
 
               <button
                 type="button"
-                onClick={handleCopyRoomLink}
-                className="bg-[#0b57d0] hover:bg-[#0842a0] text-white rounded-full px-4 py-2.5 text-xs font-medium inline-flex items-center gap-2 mb-3.5 cursor-pointer shadow-xs"
+                onClick={handleNativeShareRoomLink}
+                className="w-full sm:w-auto bg-[#0b57d0] hover:bg-[#0842a0] text-white rounded-full px-4 py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-2 mb-3 cursor-pointer shadow-xs"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Copiar convite para outras pessoas</span>
+                <span>Convidar e compartilhar link</span>
               </button>
 
-              <p className="text-xs text-[#444746] leading-relaxed mb-2.5">
-                Ou compartilhe este link da reunião com quem você quer que
-                participe
+              <p className="text-xs text-[#444746] leading-relaxed mb-2">
+                Ou copie o link da sala para enviar a quem vai participar:
               </p>
 
-              <div className="bg-[#f1f3f4] rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
+              <div className="bg-[#f1f3f4] rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs text-[#1f1f1f] truncate font-mono">
                   {realShareableLink}
                 </span>
@@ -1607,7 +1589,7 @@ export function MeetingRoomView({
                   onClick={handleCopyRoomLink}
                   title="Copiar link da reunião"
                   aria-label="Copiar link da reunião"
-                  className="text-[#444746] hover:text-[#1f1f1f] cursor-pointer shrink-0"
+                  className="text-[#444746] hover:text-[#1f1f1f] p-1 cursor-pointer shrink-0"
                 >
                   {copiedLink ? (
                     <Check className="w-4 h-4 text-[#137333]" />
@@ -1619,7 +1601,7 @@ export function MeetingRoomView({
             </div>
 
             {showPtToastCard && (
-              <div className="bg-[#004a77] text-white rounded-2xl p-4 shadow-2xl -mt-3 mx-1 relative border border-[#00639b]">
+              <div className="hidden sm:block bg-[#004a77] text-white rounded-2xl p-4 shadow-2xl -mt-3 mx-1 relative border border-[#00639b]">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     <span className="bg-[#c2e7ff] text-[#001d35] text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -1654,7 +1636,7 @@ export function MeetingRoomView({
             <div
               key={r.id}
               style={{ left: `${r.leftPercent}%` }}
-              className="absolute bottom-16 flex flex-col items-center animate-reaction-float"
+              className="absolute bottom-14 flex flex-col items-center animate-reaction-float"
             >
               <span className="text-4xl drop-shadow-md">{r.emoji}</span>
               <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full mt-1">
@@ -1666,347 +1648,635 @@ export function MeetingRoomView({
 
         {/* LIVE CAPTIONS OVERLAY (CC) */}
         {isCaptionsOn && captions.length > 0 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-4">
-            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-5 py-3 text-sm text-white shadow-xl flex items-center justify-between gap-4">
-              <div>
-                <div className="text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
-                  {captions[captions.length - 1].speakerName} • Legendas ao Vivo
-                </div>
-                <div>{captions[captions.length - 1].text}</div>
+          <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-3 sm:px-4 pointer-events-none">
+            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm text-white shadow-xl">
+              <div className="text-[10px] sm:text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
+                {captions[captions.length - 1].speakerName} • Legendas ao Vivo
               </div>
+              <div>{captions[captions.length - 1].text}</div>
             </div>
           </div>
         )}
 
-        {/* RIGHT SIDE DRAWER */}
+        {/* ADAPTIVE DRAWER: Bottom Sheet on Mobile (< lg), Side Panel on Desktop (lg:) */}
         {activeDrawer && (
-          <aside className="w-80 sm:w-96 bg-[#1e1f20] border border-[#3c4043] rounded-2xl flex flex-col overflow-hidden shrink-0 z-30">
-            <div className="px-5 py-4 border-b border-[#3c4043] flex items-center justify-between">
+          <>
+            <div
+              className="lg:hidden fixed inset-0 bg-black/60 z-40"
+              onClick={() => setActiveDrawer(null)}
+            />
+            <aside className="fixed inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl safe-bottom z-50 lg:static lg:h-full lg:w-96 lg:rounded-2xl bg-[#1e1f20] border border-[#3c4043] flex flex-col overflow-hidden shrink-0 animate-sheet-up">
+              <div className="w-10 h-1 rounded-full bg-[#5f6368] mx-auto mt-2.5 lg:hidden shrink-0" />
+              <div className="px-5 py-3.5 border-b border-[#3c4043] flex items-center justify-between shrink-0">
+                <h3 className="text-sm font-semibold text-white">
+                  {activeDrawer === "people" &&
+                    `Pessoas (${participants.length})`}
+                  {activeDrawer === "chat" && "Mensagens na chamada"}
+                  {activeDrawer === "ai" && "Assistente IA (Português)"}
+                  {activeDrawer === "activities" && "Gravações & Resumo"}
+                  {activeDrawer === "security" && "Controles do Organizador"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveDrawer(null)}
+                  aria-label="Fechar painel"
+                  className="p-2 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs min-h-0">
+                {activeDrawer === "people" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleNativeShareRoomLink}
+                      className="w-full h-11 px-4 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Compartilhar link de convite
+                    </button>
+                    <div className="space-y-2 pt-2">
+                      {participants.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between p-3 rounded-xl bg-[#282a2c]"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              style={{ backgroundColor: p.avatarColor }}
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+                            >
+                              {p.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-white truncate">
+                                {p.name}
+                              </div>
+                              <div className="text-[11px] text-[#9aa0a6]">
+                                {p.role === "HOST"
+                                  ? "Organizador da reunião"
+                                  : "Participante"}
+                              </div>
+                            </div>
+                          </div>
+                          {p.isMuted ? (
+                            <MicOff className="w-4 h-4 text-[#f28b82] shrink-0" />
+                          ) : (
+                            <Mic className="w-4 h-4 text-[#81c995] shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {activeDrawer === "chat" && (
+                  <div className="flex flex-col h-full justify-between gap-3">
+                    <div className="space-y-2.5 overflow-y-auto pr-1 flex-1">
+                      {chatMessages.map((m) => (
+                        <div key={m.id} className="bg-[#282a2c] rounded-xl p-3">
+                          <div className="flex items-center justify-between text-[11px] text-[#9aa0a6] mb-1">
+                            <span className="font-semibold text-white">
+                              {m.senderName}
+                            </span>
+                            <span>{m.timestamp}</span>
+                          </div>
+                          <p className="text-[#e3e3e3] leading-relaxed break-words">
+                            {m.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <form onSubmit={handleSendChat} className="flex gap-2 pt-1 shrink-0">
+                      <input
+                        type="text"
+                        value={chatDraft}
+                        onChange={(e) => setChatDraft(e.target.value)}
+                        placeholder="Enviar mensagem..."
+                        className="flex-1 bg-[#282a2c] border border-[#3c4043] rounded-full px-4 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:border-[#a8c7fa]"
+                      />
+                      <button
+                        type="submit"
+                        className="h-11 px-5 rounded-full bg-[#0b57d0] text-white font-semibold shrink-0 cursor-pointer"
+                      >
+                        Enviar
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {activeDrawer === "ai" && (
+                  <div className="space-y-3">
+                    <form onSubmit={handleSendAiPrompt} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Perguntar para IA..."
+                        className="flex-1 bg-[#282a2c] border border-[#3c4043] rounded-full px-4 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:border-[#a8c7fa]"
+                      />
+                      <button
+                        type="submit"
+                        className="h-11 px-4 rounded-full bg-[#0b57d0] text-white font-semibold shrink-0 cursor-pointer"
+                      >
+                        Pedir
+                      </button>
+                    </form>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleSendAiPrompt(
+                            undefined,
+                            "Resuma a discussão até agora"
+                          )
+                        }
+                        className="bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] px-3.5 py-2 rounded-full text-xs cursor-pointer"
+                      >
+                        ✦ Resumir discussão
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportMarkdownMinutes}
+                        className="bg-[#1e3a2f] hover:bg-[#274d3e] text-[#81c995] px-3.5 py-2 rounded-full text-xs cursor-pointer"
+                      >
+                        ⬇ Baixar Ata
+                      </button>
+                    </div>
+                    {aiResponses.map((res, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2"
+                      >
+                        <div className="font-semibold text-[#a8c7fa]">
+                          {res.title} ({res.generatedAt})
+                        </div>
+                        <pre className="whitespace-pre-wrap font-sans text-[#e3e3e3] leading-relaxed">
+                          {res.answer}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeDrawer === "activities" && (
+                  <div className="space-y-3">
+                    <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2.5">
+                      <div className="font-semibold text-white flex items-center gap-1.5">
+                        <Disc className="w-4 h-4 text-[#ea4335]" />
+                        Gravação da reunião
+                      </div>
+                      <p className="text-[11px] text-[#c4c7c5]">
+                        Grave a reunião para assistir ou compartilhar depois.
+                      </p>
+                      {!recordingSession ? (
+                        <button
+                          type="button"
+                          onClick={handleStartUnlimitedRecording}
+                          className="w-full h-11 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white font-semibold cursor-pointer"
+                        >
+                          ● Iniciar gravação
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStopAndDownloadRecording}
+                          className="w-full h-11 rounded-full bg-[#f28b82] text-[#601410] font-semibold cursor-pointer"
+                        >
+                          ■ Parar gravação (
+                          {formatUnlimitedDuration(activeRecDurationSec)})
+                        </button>
+                      )}
+                    </div>
+
+                    {previewVideoUrl && (
+                      <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white">
+                            Prévia da gravação
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewVideoUrl(null)}
+                            className="text-[#9aa0a6] hover:text-white cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <video
+                          src={previewVideoUrl}
+                          controls
+                          playsInline
+                          className="w-full rounded-lg bg-black max-h-44"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleExportMarkdownMinutes}
+                      className="w-full h-11 px-4 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-[#a8c7fa]" />
+                      Exportar resumo e transcrição
+                    </button>
+
+                    <div className="pt-2">
+                      <div className="font-semibold text-[#9aa0a6] uppercase tracking-wider text-[10px] mb-2">
+                        Gravações recentes ({savedRecordings.length})
+                      </div>
+                      {savedRecordings.map((rec) => (
+                        <div
+                          key={rec.sessionId}
+                          className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
+                        >
+                          <div>
+                            <div className="font-medium text-white">
+                              {rec.roomCode}
+                            </div>
+                            <div className="text-[10px] text-[#9aa0a6]">
+                              {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
+                              {formatRecordingBytes(rec.totalBytes)}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              title="Reproduzir gravação"
+                              onClick={async () => {
+                                const blob =
+                                  await assembleRecordingBlobFromVault(
+                                    rec.sessionId,
+                                    rec.mimeType
+                                  );
+                                if (blob) {
+                                  const url = URL.createObjectURL(blob);
+                                  setPreviewVideoUrl(url);
+                                }
+                              }}
+                              className="w-9 h-9 rounded-full bg-[#1e3a2f] text-[#81c995] flex items-center justify-center cursor-pointer"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Baixar gravação"
+                              onClick={async () => {
+                                const blob =
+                                  await assembleRecordingBlobFromVault(
+                                    rec.sessionId,
+                                    rec.mimeType
+                                  );
+                                if (blob) {
+                                  triggerBlobDownload(
+                                    blob,
+                                    `freeting-${rec.roomCode}-${rec.sessionId}.webm`
+                                  );
+                                }
+                              }}
+                              className="w-9 h-9 rounded-full bg-[#0b57d0] text-white flex items-center justify-center cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeDrawer === "security" && (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-[#282a2c] flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-white">
+                          Bloquear entrada na sala
+                        </div>
+                        <div className="text-[11px] text-[#9aa0a6]">
+                          Exigir aprovação do organizador
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isRoomLocked}
+                        onChange={(e) => {
+                          setIsRoomLocked(e.target.checked);
+                          showToast(
+                            e.target.checked
+                              ? "Sala bloqueada para novos visitantes"
+                              : "Sala desbloqueada"
+                          );
+                        }}
+                        className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                      />
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-[#282a2c] flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-white">
+                          Proteção de Dados Pessoais (LGPD)
+                        </div>
+                        <div className="text-[11px] text-[#9aa0a6]">
+                          Mascarar CPF, e-mail e telefone no chat e legendas
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={lgpdAutoMask}
+                        onChange={(e) => {
+                          setLgpdAutoMask(e.target.checked);
+                          saveLgpdConsent({
+                            autoMaskPersonalData: e.target.checked,
+                          });
+                          showToast(
+                            e.target.checked
+                              ? "Mascaramento automático LGPD ativado"
+                              : "Mascaramento automático LGPD desativado"
+                          );
+                        }}
+                        className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </>
+        )}
+      </div>
+
+      {/* ========================================================================
+          MOBILE ERGONOMIC 5-BUTTON DOCK (< md) — Never Overflows, Thumb-Perfect
+         ======================================================================== */}
+      <footer className="md:hidden h-18 px-3 flex items-center justify-center shrink-0 relative">
+        {showReactionBar && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#282a2c] border border-[#3c4043] rounded-full px-3.5 py-2 flex items-center gap-2.5 shadow-2xl z-40">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  const localSender =
+                    displayName.trim() ||
+                    (isCreatorRole ? "Organizador" : "Participante");
+                  spawnReaction(emoji, localSender);
+                  webrtcEngineRef.current?.broadcast({
+                    type: "REACTION",
+                    emoji,
+                    senderName: localSender,
+                  });
+                }}
+                className="text-2xl active:scale-125 transition-transform cursor-pointer px-1"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between w-full max-w-sm bg-[#1e1f20] border border-[#3c4043]/80 rounded-full px-3 py-2 shadow-xl">
+          {/* 1. Mic */}
+          <button
+            type="button"
+            onClick={handleToggleMic}
+            aria-pressed={!isMuted}
+            aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isMuted
+                ? "bg-[#3c4043] text-white"
+                : "bg-[#0b57d0] text-white"
+            }`}
+          >
+            {isMuted ? (
+              <MicOff className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5" />
+            )}
+          </button>
+
+          {/* 2. Camera */}
+          <button
+            type="button"
+            onClick={handleToggleCamera}
+            aria-pressed={!isCameraOff}
+            aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isCameraOff
+                ? "bg-[#3c4043] text-white"
+                : "bg-[#0b57d0] text-white"
+            }`}
+          >
+            {isCameraOff ? (
+              <VideoOff className="w-5 h-5" />
+            ) : (
+              <Video className="w-5 h-5" />
+            )}
+          </button>
+
+          {/* 3. Reactions */}
+          <button
+            type="button"
+            onClick={() => setShowReactionBar((v) => !v)}
+            aria-label="Reações"
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              showReactionBar
+                ? "bg-[#a8c7fa] text-[#041e49]"
+                : "bg-[#282a2c] text-[#e3e3e3]"
+            }`}
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+
+          {/* 4. Mobile All-Tools Sheet Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowMobileToolsSheet(true)}
+            aria-label="Mais ferramentas da reunião"
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors relative cursor-pointer ${
+              recordingSession || isHandRaised || isCaptionsOn
+                ? "bg-[#a8c7fa] text-[#041e49]"
+                : "bg-[#282a2c] text-[#e3e3e3]"
+            }`}
+          >
+            <MoreVertical className="w-5 h-5" />
+            {recordingSession && (
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ea4335] absolute top-1 right-1" />
+            )}
+          </button>
+
+          {/* 5. Prominent Red Hangup Pill */}
+          <button
+            type="button"
+            onClick={handleEndCall}
+            aria-label="Sair da chamada"
+            className="w-15 h-12 rounded-full bg-[#ea4335] active:bg-[#d93025] text-white flex items-center justify-center shadow-md cursor-pointer"
+          >
+            <PhoneOff className="w-5 h-5" />
+          </button>
+        </div>
+      </footer>
+
+      {/* MOBILE ALL-TOOLS ACTION SHEET (Chat, Gravar, Legendas, IA, Mão, Pessoas, Segurança) */}
+      {showMobileToolsSheet && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="md:hidden fixed inset-0 bg-black/60 z-50 flex items-end"
+          onClick={() => setShowMobileToolsSheet(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full bg-[#1e1f20] border-t border-[#3c4043] rounded-t-3xl p-5 safe-bottom space-y-4 animate-sheet-up"
+          >
+            <div className="w-10 h-1 rounded-full bg-[#5f6368] mx-auto" />
+            <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                {activeDrawer === "people" &&
-                  `Pessoas (${participants.length})`}
-                {activeDrawer === "chat" && "Mensagens na chamada"}
-                {activeDrawer === "ai" && "Assistente IA (Português)"}
-                {activeDrawer === "activities" && "Gravações & Resumo"}
-                {activeDrawer === "security" && "Controles do Organizador"}
+                Controles e Ferramentas
               </h3>
               <button
                 type="button"
-                onClick={() => setActiveDrawer(null)}
-                aria-label="Fechar painel lateral"
-                className="p-1 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+                onClick={() => setShowMobileToolsSheet(false)}
+                className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
-              {activeDrawer === "people" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCopyRoomLink}
-                    className="w-full py-2.5 px-4 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Copy className="w-4 h-4" />
-                    Copiar link para convidar pessoas
-                  </button>
-                  <div className="space-y-2 pt-2">
-                    {participants.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-[#282a2c]"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            style={{ backgroundColor: p.avatarColor }}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
-                          >
-                            {p.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-medium text-white">
-                              {p.name}
-                            </div>
-                            <div className="text-[11px] text-[#9aa0a6]">
-                              {p.role === "HOST"
-                                ? "Organizador da reunião"
-                                : "Participante"}
-                            </div>
-                          </div>
-                        </div>
-                        {p.isMuted ? (
-                          <MicOff className="w-4 h-4 text-[#f28b82]" />
-                        ) : (
-                          <Mic className="w-4 h-4 text-[#81c995]" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+            <div className="grid grid-cols-3 gap-2.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  if (!recordingSession) handleStartUnlimitedRecording();
+                  else handleStopAndDownloadRecording();
+                }}
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                  recordingSession
+                    ? "bg-[#ea4335] text-white"
+                    : "bg-[#282a2c] text-white"
+                }`}
+              >
+                <Disc className="w-5 h-5" />
+                <span>{recordingSession ? "Parar Gravação" : "Gravar"}</span>
+              </button>
 
-              {activeDrawer === "chat" && (
-                <div className="flex flex-col h-full justify-between space-y-3">
-                  <div className="space-y-2.5 overflow-y-auto pr-1">
-                    {chatMessages.map((m) => (
-                      <div key={m.id} className="bg-[#282a2c] rounded-xl p-3">
-                        <div className="flex items-center justify-between text-[11px] text-[#9aa0a6] mb-1">
-                          <span className="font-semibold text-white">
-                            {m.senderName}
-                          </span>
-                          <span>{m.timestamp}</span>
-                        </div>
-                        <p className="text-[#e3e3e3] leading-relaxed">
-                          {m.text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <form onSubmit={handleSendChat} className="flex gap-2 pt-2">
-                    <input
-                      type="text"
-                      value={chatDraft}
-                      onChange={(e) => setChatDraft(e.target.value)}
-                      placeholder="Enviar mensagem para todos..."
-                      className="flex-1 bg-[#282a2c] border border-[#3c4043] rounded-full px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#a8c7fa]"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-full bg-[#0b57d0] text-white font-medium cursor-pointer"
-                    >
-                      Enviar
-                    </button>
-                  </form>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  handleToggleHandRaise();
+                }}
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                  isHandRaised
+                    ? "bg-[#fbbc04] text-[#1f1f1f]"
+                    : "bg-[#282a2c] text-white"
+                }`}
+              >
+                <Hand className="w-5 h-5" />
+                <span>{isHandRaised ? "Abaixar Mão" : "Levantar Mão"}</span>
+              </button>
 
-              {activeDrawer === "ai" && (
-                <div className="space-y-3">
-                  <div className="bg-[#004a77]/60 border border-[#00639b] rounded-xl p-3 text-[#c2e7ff]">
-                    Faça perguntas ao Assistente IA sobre a discussão ou gere a
-                    ata completa.
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleSendAiPrompt(
-                          undefined,
-                          "Resuma a discussão até agora",
-                        )
-                      }
-                      className="bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] px-3 py-1.5 rounded-full text-[11px] cursor-pointer"
-                    >
-                      ✦ Resumir discussão
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportMarkdownMinutes}
-                      className="bg-[#1e3a2f] hover:bg-[#274d3e] text-[#81c995] px-3 py-1.5 rounded-full text-[11px] cursor-pointer"
-                    >
-                      ⬇ Baixar Ata
-                    </button>
-                  </div>
-                  {aiResponses.map((res, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2"
-                    >
-                      <div className="font-semibold text-[#a8c7fa]">
-                        {res.title} ({res.generatedAt})
-                      </div>
-                      <pre className="whitespace-pre-wrap font-sans text-[#e3e3e3] leading-relaxed">
-                        {res.answer}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  handleToggleCaptions();
+                }}
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                  isCaptionsOn
+                    ? "bg-[#a8c7fa] text-[#041e49]"
+                    : "bg-[#282a2c] text-white"
+                }`}
+              >
+                <Captions className="w-5 h-5" />
+                <span>Legendas</span>
+              </button>
 
-              {activeDrawer === "activities" && (
-                <div className="space-y-3">
-                  <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2">
-                    <div className="font-semibold text-white flex items-center gap-1.5">
-                      <Disc className="w-4 h-4 text-[#ea4335]" />
-                      Gravação da reunião
-                    </div>
-                    <p className="text-[11px] text-[#c4c7c5]">
-                      Grave a reunião para assistir ou compartilhar depois.
-                    </p>
-                    {!recordingSession ? (
-                      <button
-                        type="button"
-                        onClick={handleStartUnlimitedRecording}
-                        className="w-full py-2 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white font-semibold cursor-pointer"
-                      >
-                        ● Iniciar gravação
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleStopAndDownloadRecording}
-                        className="w-full py-2 rounded-full bg-[#f28b82] text-[#601410] font-semibold cursor-pointer"
-                      >
-                        ■ Parar gravação (
-                        {formatUnlimitedDuration(activeRecDurationSec)})
-                      </button>
-                    )}
-                  </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  setActiveDrawer("chat");
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <MessageSquare className="w-5 h-5 text-[#a8c7fa]" />
+                <span>Chat</span>
+              </button>
 
-                  {previewVideoUrl && (
-                    <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-white">
-                          Prévia da gravação
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewVideoUrl(null)}
-                          className="text-[#9aa0a6] hover:text-white cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <video
-                        src={previewVideoUrl}
-                        controls
-                        className="w-full rounded-lg bg-black max-h-40"
-                      />
-                    </div>
-                  )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  setActiveDrawer("ai");
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <Sparkles className="w-5 h-5 text-[#a8c7fa]" />
+                <span>Assistente IA</span>
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={handleExportMarkdownMinutes}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                    Exportar resumo e transcrição
-                  </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  handleNativeShareRoomLink();
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <Share2 className="w-5 h-5 text-[#81c995]" />
+                <span>Convidar</span>
+              </button>
 
-                  <div className="pt-2">
-                    <div className="font-semibold text-[#9aa0a6] uppercase tracking-wider text-[10px] mb-2">
-                      Gravações recentes ({savedRecordings.length})
-                    </div>
-                    {savedRecordings.map((rec) => (
-                      <div
-                        key={rec.sessionId}
-                        className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
-                      >
-                        <div>
-                          <div className="font-medium text-white">
-                            {rec.roomCode}
-                          </div>
-                          <div className="text-[10px] text-[#9aa0a6]">
-                            {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
-                            {formatRecordingBytes(rec.totalBytes)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            title="Reproduzir gravação"
-                            onClick={async () => {
-                              const blob = await assembleRecordingBlobFromVault(
-                                rec.sessionId,
-                                rec.mimeType,
-                              );
-                              if (blob) {
-                                const url = URL.createObjectURL(blob);
-                                setPreviewVideoUrl(url);
-                              }
-                            }}
-                            className="p-2 rounded-full bg-[#1e3a2f] text-[#81c995] cursor-pointer"
-                          >
-                            <Play className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Baixar gravação"
-                            onClick={async () => {
-                              const blob = await assembleRecordingBlobFromVault(
-                                rec.sessionId,
-                                rec.mimeType,
-                              );
-                              if (blob) {
-                                triggerBlobDownload(
-                                  blob,
-                                  `freeting-${rec.roomCode}-${rec.sessionId}.webm`,
-                                );
-                              }
-                            }}
-                            className="p-2 rounded-full bg-[#0b57d0] text-white cursor-pointer"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  setActiveDrawer("activities");
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <LayoutGrid className="w-5 h-5 text-[#c4c7c5]" />
+                <span>Gravações</span>
+              </button>
 
-              {activeDrawer === "security" && (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-[#282a2c] flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-white">
-                        Bloquear entrada na sala
-                      </div>
-                      <div className="text-[11px] text-[#9aa0a6]">
-                        Exigir aprovação do organizador
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={isRoomLocked}
-                      onChange={(e) => {
-                        setIsRoomLocked(e.target.checked);
-                        showToast(
-                          e.target.checked
-                            ? "Sala bloqueada para novos visitantes"
-                            : "Sala desbloqueada",
-                        );
-                      }}
-                      className="w-4 h-4 accent-[#a8c7fa]"
-                    />
-                  </div>
-                  <div className="p-3 rounded-xl bg-[#282a2c] flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-white">
-                        Proteção de Dados Pessoais (LGPD)
-                      </div>
-                      <div className="text-[11px] text-[#9aa0a6]">
-                        Mascarar CPF, e-mail e telefone no chat e legendas
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={lgpdAutoMask}
-                      onChange={(e) => {
-                        setLgpdAutoMask(e.target.checked);
-                        saveLgpdConsent({
-                          autoMaskPersonalData: e.target.checked,
-                        });
-                        showToast(
-                          e.target.checked
-                            ? "Mascaramento automático LGPD ativado"
-                            : "Mascaramento automático LGPD desativado",
-                        );
-                      }}
-                      className="w-4 h-4 accent-[#a8c7fa]"
-                    />
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  setActiveDrawer("security");
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <Lock className="w-5 h-5 text-[#c4c7c5]" />
+                <span>Segurança</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  setHighContrastMode((v) => !v);
+                }}
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                  highContrastMode
+                    ? "bg-yellow-400 text-black"
+                    : "bg-[#282a2c] text-white"
+                }`}
+              >
+                <Contrast className="w-5 h-5" />
+                <span>Contraste</span>
+              </button>
             </div>
-          </aside>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
-      {/* BOTTOM CONTROL BAR */}
-      <footer className="h-20 px-5 flex items-center justify-between gap-4 shrink-0 relative">
+      {/* ========================================================================
+          DESKTOP FULL BOTTOM CONTROL BAR (md:flex)
+         ======================================================================== */}
+      <footer className="hidden md:flex h-20 px-5 items-center justify-between gap-4 shrink-0 relative">
         <form
           onSubmit={handleSendAiPrompt}
           className="hidden lg:flex items-center bg-[#282a2c] hover:bg-[#323537] border border-[#3c4043] rounded-full h-12 pl-4 pr-2 w-[310px] justify-between transition-colors"
@@ -2037,7 +2307,6 @@ export function MeetingRoomView({
           </div>
         </form>
 
-        {/* Center Media Controls */}
         <div
           role="toolbar"
           aria-label="Controles de mídia e gravação da reunião"
@@ -2137,7 +2406,7 @@ export function MeetingRoomView({
             <MonitorUp className="w-5 h-5" />
           </button>
 
-          {/* 4. Recorder Button ("Gravar") */}
+          {/* 4. Recorder Button */}
           <button
             type="button"
             aria-pressed={!!recordingSession}
@@ -2226,17 +2495,7 @@ export function MeetingRoomView({
           <button
             type="button"
             aria-pressed={isHandRaised}
-            onClick={() => {
-              const next = !isHandRaised;
-              setIsHandRaised(next);
-              showToast(next ? "✋ Mão levantada" : "Mão abaixada");
-              webrtcEngineRef.current?.updateLocalParticipantMeta({
-                isHandRaised: next,
-              });
-              setParticipants((prev) =>
-                prev.map((p) => (p.isLocal ? { ...p, isHandRaised: next } : p)),
-              );
-            }}
+            onClick={handleToggleHandRaise}
             title="Levantar a mão (Alt+H)"
             aria-label="Levantar ou abaixar a mão"
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
@@ -2248,7 +2507,7 @@ export function MeetingRoomView({
             <Hand className="w-5 h-5" />
           </button>
 
-          {/* 8. More Options (⋮) */}
+          {/* 8. More Options */}
           <div className="relative">
             <button
               type="button"
@@ -2400,10 +2659,7 @@ export function MeetingRoomView({
               {[
                 { key: "Alt + M", action: "Ativar / Desativar Microfone" },
                 { key: "Alt + V", action: "Ativar / Desativar Câmera" },
-                {
-                  key: "Alt + R",
-                  action: "Iniciar / Parar Gravação",
-                },
+                { key: "Alt + R", action: "Iniciar / Parar Gravação" },
                 {
                   key: "Alt + C",
                   action: "Ativar / Desativar Legendas em Português (CC)",

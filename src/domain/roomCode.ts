@@ -77,12 +77,7 @@ export function formatShareableLink(code: string, origin?: string): string {
   const normalized = extractRoomCode(code) ?? code.trim().toLowerCase();
   if (origin) {
     const base = origin.replace(/\/$/, "");
-    const pathPrefix =
-      typeof window !== "undefined" &&
-      window.location.pathname.startsWith("/freeting")
-        ? "/freeting"
-        : "";
-    return `${base}${pathPrefix}/?room=${normalized}`;
+    return `${base}/?room=${normalized}`;
   }
-  return `freeting.app/?room=${normalized}`;
+  return `https://freeting.vercel.app/?room=${normalized}`;
 }
