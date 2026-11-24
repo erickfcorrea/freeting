@@ -17,6 +17,7 @@ export interface LgpdConsentRecord {
   aiTranscriptionConsentGranted: boolean;
   autoMaskPersonalData: boolean;
   screenSharePrivacyShield: boolean;
+  ipRelayPrivacyMode: boolean;
   updatedAtIso: string;
 }
 
@@ -37,6 +38,7 @@ export const DEFAULT_LGPD_CONSENT: LgpdConsentRecord = {
   aiTranscriptionConsentGranted: false,
   autoMaskPersonalData: true,
   screenSharePrivacyShield: true,
+  ipRelayPrivacyMode: false,
   updatedAtIso: new Date().toISOString(),
 };
 

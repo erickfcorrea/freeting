@@ -2,17 +2,60 @@ const ROOM_ALPHABET = "abcdefghijkmnopqrstuvwxyz";
 
 export const ROOM_CODE_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/;
 
-function randomLetters(length: number, rng: () => number = Math.random): string {
+/**
+ * Gera inteiro aleatório criptograficamente seguro sem viés de módulo (CSPRNG — Web Crypto API, CWE-338 mitigation).
+ */
+function cryptoRandomIndex(maxExclusive: number): number {
+  if (
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.getRandomValues === "function"
+  ) {
+    const maxUnbiased = Math.floor(256 / maxExclusive) * maxExclusive;
+    const buf = new Uint8Array(1);
+    do {
+      globalThis.crypto.getRandomValues(buf);
+    } while (buf[0] >= maxUnbiased);
+    return buf[0] % maxExclusive;
+  }
+  return Math.floor(Math.random() * maxExclusive);
+}
+
+function randomLetters(
+  length: number,
+  customRng?: () => number
+): string {
   let result = "";
   for (let i = 0; i < length; i++) {
-    const idx = Math.floor(rng() * ROOM_ALPHABET.length) % ROOM_ALPHABET.length;
+    const idx = customRng
+      ? Math.floor(customRng() * ROOM_ALPHABET.length) % ROOM_ALPHABET.length
+      : cryptoRandomIndex(ROOM_ALPHABET.length);
     result += ROOM_ALPHABET[idx];
   }
   return result;
 }
 
-export function generateRoomCode(rng: () => number = Math.random): string {
-  return `${randomLetters(3, rng)}-${randomLetters(4, rng)}-${randomLetters(3, rng)}`;
+export function generateRoomCode(customRng?: () => number): string {
+  return `${randomLetters(3, customRng)}-${randomLetters(4, customRng)}-${randomLetters(3, customRng)}`;
+}
+
+/**
+ * Gera identificador de sessão/participante imprevisível com entropia CSPRNG de 64 bits.
+ */
+export function generateSecurePeerId(prefix = "peer"): string {
+  if (
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.getRandomValues === "function"
+  ) {
+    const bytes = new Uint8Array(8);
+    globalThis.crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return `${prefix}_${hex}`;
+  }
+  return `${prefix}_${Date.now().toString(36)}`;
 }
 
 export function isValidRoomCode(code: string): boolean {
@@ -21,13 +64,13 @@ export function isValidRoomCode(code: string): boolean {
 
 export function extractRoomCode(input: string): string | null {
   if (!input || typeof input !== "string") return null;
-  const trimmed = input.trim().toLowerCase();
+  const trimmed = input.trim().toLowerCase().slice(0, 256);
   if (!trimmed) return null;
 
   // 1. Check query parameter ?room=xxx-xxxx-xxx if a full URL was pasted
   try {
     if (trimmed.includes("?room=") || trimmed.includes("&room=")) {
-      const matchParam = trimmed.match(/[?&]room=([a-z0-9-_]+)/);
+      const matchParam = trimmed.match(/[?&]room=([a-z0-9-_]{2,32})/);
       if (matchParam && matchParam[1]) {
         return matchParam[1];
       }
@@ -52,7 +95,7 @@ export function extractRoomCode(input: string): string | null {
     return embeddedMatch[1];
   }
 
-  // 5. Flexible custom room code / slug (e.g. "sala-1", "daily", "projeto2026")
+  // 5. Flexible custom room code / slug (sanitized strictly to [a-z0-9-_])
   const cleaned = trimmed
     .replace(/^https?:\/\/[^/]+\//, "")
     .replace(/^freeting\//, "")
@@ -74,10 +117,10 @@ export function extractRoomCode(input: string): string | null {
 }
 
 export function formatShareableLink(code: string, origin?: string): string {
-  const normalized = extractRoomCode(code) ?? code.trim().toLowerCase();
-  if (origin) {
+  const normalized = extractRoomCode(code) ?? "amd-wraw-qkg";
+  if (origin && /^https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(origin.replace(/\/$/, ""))) {
     const base = origin.replace(/\/$/, "");
-    return `${base}/?room=${normalized}`;
+    return `${base}/?room=${encodeURIComponent(normalized)}`;
   }
-  return `https://freeting.vercel.app/?room=${normalized}`;
+  return `https://freeting.vercel.app/?room=${encodeURIComponent(normalized)}`;
 }

@@ -102,13 +102,15 @@ export function listMeetingsFromDb(): {
   return { meetings, engine: "node:sqlite" };
 }
 
+const MAX_STORED_MEETINGS = 500;
+
 export function createMeetingInDb(meeting: ScheduledMeeting): ScheduledMeeting {
   const db = getSqliteDb();
   if (!db) {
     memoryFallbackMeetings = [
       ...memoryFallbackMeetings.filter((m) => m.id !== meeting.id),
       meeting,
-    ];
+    ].slice(-MAX_STORED_MEETINGS);
     return meeting;
   }
   const stmt = db.prepare(`
@@ -130,6 +132,13 @@ export function createMeetingInDb(meeting: ScheduledMeeting): ScheduledMeeting {
     meeting.unlimitedRecordingEnabled ? 1 : 0,
     meeting.description || "",
   );
+  // Retenção controlada anti-DoS e Minimização de Dados (LGPD Art. 6º, III e Art. 15)
+  db.prepare(`
+    DELETE FROM meetings
+    WHERE id NOT IN (
+      SELECT id FROM meetings ORDER BY dateIso DESC, startTime DESC LIMIT ?
+    )
+  `).run(MAX_STORED_MEETINGS);
   return meeting;
 }
 

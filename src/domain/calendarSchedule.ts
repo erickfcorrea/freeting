@@ -6,7 +6,7 @@ export interface ScheduledMeeting {
   roomCode: string;
   dateIso: string; // YYYY-MM-DD in local schedule
   startTime: string; // HH:mm
-  endTime: string; // HH:mm or "∞ Sem Limite"
+  endTime: string; // HH:mm or empty
   hostName: string;
   status: MeetingStatus;
   aiNotesEnabled: boolean;
@@ -52,7 +52,7 @@ export function parseLocalDateIso(dateIso: string): Date {
 }
 
 /**
- * Formats date like Google Meet Home: "seg., 23 de nov."
+ * Formats Portuguese date header: "seg., 23 de nov."
  */
 export function formatPortugueseDateHeader(date: Date): string {
   const weekday = PT_BR_DAYS_HEADER[date.getDay()];
@@ -62,8 +62,7 @@ export function formatPortugueseDateHeader(date: Date): string {
 }
 
 /**
- * Builds the 7-day Sunday..Saturday calendar strip around selectedDate,
- * matching Google Meet's weekly selector bar.
+ * Builds the 7-day Sunday..Saturday calendar strip around selectedDate.
  */
 export function buildWeekStrip(
   selectedDate: Date,

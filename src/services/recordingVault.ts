@@ -7,6 +7,7 @@ import {
   finalizeRecordingSession,
   getEffectiveRecordingDurationMs,
 } from "@/domain/unlimitedRecorder";
+import { sanitizeDownloadFilename } from "@/domain/securityGuard";
 
 export interface StoredRecordingMeta {
   sessionId: string;
@@ -163,10 +164,12 @@ export function getRecordingFileExtension(mimeType?: string): "mp4" | "webm" {
 
 export function triggerBlobDownload(blob: Blob, filename: string): void {
   if (typeof window === "undefined") return;
+  const safeFilename = sanitizeDownloadFilename(filename);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = safeFilename;
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -3,10 +3,11 @@
 
   <br />
 
-  [![MIT License](https://img.shields.io/badge/License-MIT-D4AF37?style=flat-square)](LICENSE)
-  [![Hosted on Vercel](https://img.shields.io/badge/Hosted%20on-Vercel-000000?style=flat-square&logo=vercel)](https://freeting.vercel.app)
-  [![LGPD Compliant](https://img.shields.io/badge/LGPD-Lei%2013.709%2F2018-0B57D0?style=flat-square)](SECURITY.md)
-  [![Contributing](https://img.shields.io/badge/PRs-Welcome-10B981?style=flat-square)](CONTRIBUTING.md)
+[![MIT License](https://img.shields.io/badge/License-MIT-D4AF37?style=flat-square)](LICENSE)
+[![Hosted on Vercel](https://img.shields.io/badge/Hosted%20on-Vercel-000000?style=flat-square&logo=vercel)](https://freeting.vercel.app)
+[![LGPD Compliant](https://img.shields.io/badge/LGPD-Lei%2013.709%2F2018-0B57D0?style=flat-square)](SECURITY.md)
+[![Contributing](https://img.shields.io/badge/PRs-Welcome-10B981?style=flat-square)](CONTRIBUTING.md)
+
 </div>
 
 # FREETING — Videoconferências & Gravações Sem Limites
@@ -27,7 +28,7 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
   - **Direitos do Titular (Art. 18)**: Central de Privacidade integrada com exportação de portabilidade em JSON e eliminação instantânea de todos os dados e gravações locais.
 - **Assistente de IA & Legendas ao Vivo em Português (`CC`)**: Transcrição em tempo real via Web Speech API, geração de resumos durante a chamada e exportação da Ata em Markdown (`.md`).
 - **Experiência Mobile-First & PWA Instalável**:
-  - Layout adaptativo `100dvh` com suporte a `safe-area-inset` (iOS/Android), barra inferior ergonômica na zona do polegar, gavetas *Bottom Sheet* deslizantes, grade retrato 50/50 e compartilhamento nativo via Web Share API (WhatsApp, Telegram, SMS).
+  - Layout adaptativo `100dvh` com suporte a `safe-area-inset` (iOS/Android), barra inferior ergonômica na zona do polegar, gavetas _Bottom Sheet_ deslizantes, grade retrato 50/50 e compartilhamento nativo via Web Share API (WhatsApp, Telegram, SMS).
 - **Design Moderno & Acessibilidade (WCAG 2.2 AA/AAA)**:
   - Alternância entre **Modo Claro**, **Modo Escuro Pro** e **Modo Alto Contraste (WCAG AAA)**.
   - Controle de escala tipográfica (`100%`, `110%`, `120%`), suporte a leitores de tela (`aria-live`) e atalhos globais de teclado.
@@ -36,15 +37,15 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
 
 ## Atalhos de Teclado na Sala
 
-| Atalho | Ação |
-| :--- | :--- |
-| `Alt + M` | Ativar / Desativar Microfone |
-| `Alt + V` | Ativar / Desativar Câmera |
+| Atalho    | Ação                                                   |
+| :-------- | :----------------------------------------------------- |
+| `Alt + M` | Ativar / Desativar Microfone                           |
+| `Alt + V` | Ativar / Desativar Câmera                              |
 | `Alt + S` | Compartilhar / Parar Tela (Modo Anti-Espelho Infinito) |
-| `Alt + R` | Iniciar / Parar Gravação |
-| `Alt + C` | Alternar Legendas ao Vivo em Português (`CC`) |
-| `Alt + H` | Levantar / Abaixar a Mão (`✋`) |
-| `?` | Abrir Guia de Atalhos e Acessibilidade |
+| `Alt + R` | Iniciar / Parar Gravação                               |
+| `Alt + C` | Alternar Legendas ao Vivo em Português (`CC`)          |
+| `Alt + H` | Levantar / Abaixar a Mão (`✋`)                        |
+| `?`       | Abrir Guia de Atalhos e Acessibilidade                 |
 
 ---
 

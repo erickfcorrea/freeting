@@ -57,7 +57,10 @@ import {
   ZoomIn,
   Trash2,
 } from "lucide-react";
-import { formatShareableLink } from "@/domain/roomCode";
+import {
+  formatShareableLink,
+  generateSecurePeerId,
+} from "@/domain/roomCode";
 import {
   UnlimitedRecordingSession,
   formatUnlimitedDuration,
@@ -601,6 +604,9 @@ export function MeetingRoomView({
   const [lgpdScreenPrivacy, setLgpdScreenPrivacy] = useState<boolean>(
     () => loadLgpdConsent().screenSharePrivacyShield
   );
+  const [lgpdIpRelay, setLgpdIpRelay] = useState<boolean>(
+    () => loadLgpdConsent().ipRelayPrivacyMode
+  );
 
   const [isCallEnded, setIsCallEnded] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(false);
@@ -654,9 +660,7 @@ export function MeetingRoomView({
   const speechRecognitionRef = useRef<{ stop: () => void } | null>(null);
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
-  const localPeerIdRef = useRef<string>(
-    `peer_${Math.random().toString(36).slice(2, 9)}`
-  );
+  const localPeerIdRef = useRef<string>(generateSecurePeerId("peer"));
 
   // Participants, Chat, Captions, Reactions, AI
   const [participants, setParticipants] = useState<RoomParticipant[]>(() => [
@@ -1161,6 +1165,9 @@ export function MeetingRoomView({
           setAudioWakeTick((t) => t + 1);
         } else if (payload.type === "ROOM_LOCK_STATE") {
           setIsRoomLocked(payload.locked);
+        } else if (payload.type === "ROOM_LOCKED_REJECT") {
+          showToast(payload.reason || "Esta sala está trancada pelo organizador.");
+          setInPreJoinLobby(true);
         } else if (payload.type === "HOST_MUTE_ALL") {
           muteLocalMicSilently(
             `Microfones silenciados por ${payload.requestedBy}`
@@ -1244,14 +1251,15 @@ export function MeetingRoomView({
         joinedAtIso: new Date().toISOString(),
       },
       getEffectiveOutboundStream(),
-      isCreatorRole
+      isCreatorRole,
+      lgpdIpRelay
     );
 
     return () => {
       engine.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inPreJoinLobby, isCallEnded, roomCode]);
+  }, [inPreJoinLobby, isCallEnded, roomCode, lgpdIpRelay]);
 
   useEffect(() => {
     return () => {
@@ -3626,6 +3634,33 @@ export function MeetingRoomView({
                             saveLgpdConsent({
                               screenSharePrivacyShield: checked,
                             });
+                          }}
+                          className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div>
+                          <div className="font-medium text-white">
+                            Ocultar Meu IP Real (Relay TURN — Art. 46)
+                          </div>
+                          <div className="text-[11px] text-[#9aa0a6]">
+                            Força roteamento via servidor TURN sem expor seu IP
+                            direto na rede P2P
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={lgpdIpRelay}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setLgpdIpRelay(checked);
+                            saveLgpdConsent({ ipRelayPrivacyMode: checked });
+                            showToast(
+                              checked
+                                ? "Modo de anonimização de IP (Relay TURN) ativado"
+                                : "Conexão P2P híbrida padrão restaurada"
+                            );
                           }}
                           className="w-5 h-5 accent-[#a8c7fa] shrink-0"
                         />
