@@ -157,6 +157,10 @@ export async function deleteRecordingFromVault(sessionId: string): Promise<void>
   }
 }
 
+export function getRecordingFileExtension(mimeType?: string): "mp4" | "webm" {
+  return mimeType && mimeType.toLowerCase().includes("mp4") ? "mp4" : "webm";
+}
+
 export function triggerBlobDownload(blob: Blob, filename: string): void {
   if (typeof window === "undefined") return;
   const url = URL.createObjectURL(blob);
@@ -255,6 +259,8 @@ export class LiveUnlimitedMediaRecorder {
   private syntheticCanvas: HTMLCanvasElement | null = null;
   private syntheticAnimFrame: number | null = null;
   private audioCtx: AudioContext | null = null;
+  private audioDest: MediaStreamAudioDestinationNode | null = null;
+  private attachedStreamIds = new Set<string>();
   private compositeStream: MediaStream | null = null;
   private onUpdate: (session: UnlimitedRecordingSession) => void;
 
@@ -270,6 +276,19 @@ export class LiveUnlimitedMediaRecorder {
     return this.session;
   }
 
+  public attachAudioStream(stream: MediaStream | null | undefined): void {
+    if (!stream || !this.audioCtx || !this.audioDest) return;
+    if (this.attachedStreamIds.has(stream.id)) return;
+    if (!stream.getAudioTracks().some((t) => t.readyState === "live")) return;
+    try {
+      const source = this.audioCtx.createMediaStreamSource(stream);
+      source.connect(this.audioDest);
+      this.attachedStreamIds.add(stream.id);
+    } catch {
+      // ignore duplicate or ended stream
+    }
+  }
+
   public async start(options: {
     primaryVideoStream?: MediaStream | null;
     audioStreams?: Array<MediaStream | null | undefined>;
@@ -281,6 +300,7 @@ export class LiveUnlimitedMediaRecorder {
       "video/webm;codecs=vp9,opus",
       "video/webm;codecs=vp8,opus",
       "video/webm",
+      "video/mp4;codecs=avc1,mp4a.40.2",
       "video/mp4",
     ];
     const selectedMime =
@@ -377,25 +397,34 @@ export class LiveUnlimitedMediaRecorder {
       canvasStream.getVideoTracks().forEach((t) => combinedTracks.push(t));
     }
 
-    if (typeof window !== "undefined" && "AudioContext" in window) {
+    if (typeof window !== "undefined") {
       try {
-        const audioCtx = new window.AudioContext();
-        if (audioCtx.state === "suspended") {
-          await audioCtx.resume().catch(() => {});
-        }
-        this.audioCtx = audioCtx;
-        const dest = audioCtx.createMediaStreamDestination();
-        let hasAudioSource = false;
-
-        for (const stream of options.audioStreams || []) {
-          if (stream && stream.getAudioTracks().some((t) => t.readyState === "live")) {
-            const source = audioCtx.createMediaStreamSource(stream);
-            source.connect(dest);
-            hasAudioSource = true;
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
+        if (AudioCtx) {
+          const audioCtx = new AudioCtx();
+          if (audioCtx.state === "suspended") {
+            await audioCtx.resume().catch(() => {});
           }
-        }
+          this.audioCtx = audioCtx;
+          const dest = audioCtx.createMediaStreamDestination();
+          this.audioDest = dest;
+          this.attachedStreamIds.clear();
 
-        if (hasAudioSource) {
+          // Silent baseline oscillator keeps audio track alive even if everyone starts muted
+          const osc = audioCtx.createOscillator();
+          const silentGain = audioCtx.createGain();
+          silentGain.gain.value = 0;
+          osc.connect(silentGain);
+          silentGain.connect(dest);
+          osc.start();
+
+          for (const stream of options.audioStreams || []) {
+            this.attachAudioStream(stream);
+          }
+
           dest.stream.getAudioTracks().forEach((t) => combinedTracks.push(t));
         }
       } catch {
@@ -484,6 +513,8 @@ export class LiveUnlimitedMediaRecorder {
         // ignore
       }
       this.audioCtx = null;
+      this.audioDest = null;
+      this.attachedStreamIds.clear();
     }
 
     await Promise.allSettled(this.pendingVaultWrites);
@@ -518,9 +549,10 @@ export class LiveUnlimitedMediaRecorder {
         .toISOString()
         .slice(0, 19)
         .replace(/[:T]/g, "-");
+      const ext = getRecordingFileExtension(this.session.mimeType);
       triggerBlobDownload(
         blob,
-        `freeting-${this.session.roomCode}-${safeTime}-unlimited.webm`
+        `freeting-${this.session.roomCode}-${safeTime}-unlimited.${ext}`
       );
     }
 

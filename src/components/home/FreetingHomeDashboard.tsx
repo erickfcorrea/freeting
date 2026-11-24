@@ -53,6 +53,7 @@ import {
   assembleRecordingBlobFromVault,
   deleteRecordingFromVault,
   triggerBlobDownload,
+  getRecordingFileExtension,
 } from "@/services/recordingVault";
 import {
   LgpdConsentRecord,
@@ -416,9 +417,10 @@ export function FreetingHomeDashboard() {
       rec.mimeType
     );
     if (blob) {
+      const ext = getRecordingFileExtension(rec.mimeType);
       triggerBlobDownload(
         blob,
-        `freeting-${rec.roomCode}-${rec.sessionId}.webm`
+        `freeting-${rec.roomCode}-${rec.sessionId}.${ext}`
       );
       announce(`Baixando gravação da sala ${rec.roomCode}`);
     }

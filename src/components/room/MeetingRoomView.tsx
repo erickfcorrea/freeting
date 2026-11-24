@@ -38,6 +38,9 @@ import {
   Keyboard,
   Contrast,
   Share2,
+  RefreshCw,
+  Volume2,
+  Sliders,
 } from "lucide-react";
 import { formatShareableLink } from "@/domain/roomCode";
 import {
@@ -54,6 +57,7 @@ import {
   assembleRecordingBlobFromVault,
   triggerBlobDownload,
   createVirtualCameraStream,
+  getRecordingFileExtension,
 } from "@/services/recordingVault";
 import {
   RoomParticipant,
@@ -107,46 +111,140 @@ const SIMULATED_BOT_PROFILES = [
 
 export type StageLayoutMode = "auto" | "grid" | "spotlight";
 
-function RemoteParticipantMedia({
+interface MediaDeviceOption {
+  deviceId: string;
+  label: string;
+}
+
+/**
+ * Always-mounted Remote Audio Renderer (decoupled from visual video tiles).
+ * Prevents audio dropouts when pinning participants, switching layouts, or toggling cameras,
+ * and handles iOS Safari / Android Chrome autoplay policies + VoiceChat audio session switches.
+ */
+function RemoteAudioTrackPlayer({
   stream,
-  isCameraOff,
-  isMuted,
+  wakeTick,
+  speakerDeviceId,
+  onAutoplayBlocked,
+  onAutoplayUnblocked,
 }: {
-  stream?: MediaStream | null;
-  isCameraOff: boolean;
-  isMuted: boolean;
+  stream: MediaStream;
+  wakeTick: number;
+  speakerDeviceId: string;
+  onAutoplayBlocked: () => void;
+  onAutoplayUnblocked: () => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
-    }
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-      audioRef.current.play().catch(() => {});
-    }
-  }, [stream, isCameraOff, isMuted]);
+  const attemptPlay = useCallback(() => {
+    const el = audioRef.current;
+    if (!el || !stream) return;
 
-  const hasVideoTracks =
-    !!stream &&
-    !isCameraOff &&
-    stream.getVideoTracks().some((t) => t.readyState === "live");
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    el.muted = false;
+    el.volume = 1.0;
+
+    // Optional Desktop Speaker Output selection (setSinkId)
+    const sinkCapable = el as HTMLAudioElement & {
+      setSinkId?: (sinkId: string) => Promise<void>;
+    };
+    if (speakerDeviceId && typeof sinkCapable.setSinkId === "function") {
+      sinkCapable.setSinkId(speakerDeviceId).catch(() => {});
+    }
+
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise
+        .then(() => {
+          onAutoplayUnblocked();
+        })
+        .catch(() => {
+          onAutoplayBlocked();
+        });
+    }
+  }, [stream, speakerDeviceId, onAutoplayBlocked, onAutoplayUnblocked]);
+
+  useEffect(() => {
+    attemptPlay();
+  }, [attemptPlay, wakeTick]);
+
+  useEffect(() => {
+    if (!stream) return;
+
+    const handleTrackChange = () => {
+      attemptPlay();
+    };
+
+    stream.addEventListener("addtrack", handleTrackChange);
+    const audioTracks = stream.getAudioTracks();
+    audioTracks.forEach((track) => {
+      track.addEventListener("unmute", handleTrackChange);
+    });
+
+    const el = audioRef.current;
+    const handleUnexpectedPause = () => {
+      // On iOS Safari & Android, getUserMedia switches hardware audio mode and can pause <audio>
+      if (
+        typeof document !== "undefined" &&
+        !document.hidden &&
+        stream.getAudioTracks().some((t) => t.readyState === "live")
+      ) {
+        setTimeout(() => {
+          attemptPlay();
+        }, 180);
+      }
+    };
+    el?.addEventListener("pause", handleUnexpectedPause);
+
+    return () => {
+      stream.removeEventListener("addtrack", handleTrackChange);
+      audioTracks.forEach((track) => {
+        track.removeEventListener("unmute", handleTrackChange);
+      });
+      el?.removeEventListener("pause", handleUnexpectedPause);
+    };
+  }, [stream, attemptPlay]);
+
+  return <audio ref={audioRef} autoPlay playsInline controls={false} />;
+}
+
+/**
+ * Pure visual Remote Video Renderer (strictly muted so mobile browsers NEVER block video autoplay;
+ * audio is rendered independently by RemoteAudioTrackPlayer).
+ */
+function RemoteVideoSurface({
+  stream,
+  fitMode = "cover",
+}: {
+  stream?: MediaStream | null;
+  fitMode?: "cover" | "contain";
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !stream) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    el.muted = true;
+    el.play().catch(() => {});
+  }, [stream]);
+
+  if (!stream) return null;
 
   return (
-    <>
-      {stream && <audio ref={audioRef} autoPlay playsInline muted={false} />}
-      {hasVideoTracks && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          className="w-full h-full object-cover"
-        />
-      )}
-    </>
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className={`w-full h-full ${
+        fitMode === "contain" ? "object-contain bg-black" : "object-cover"
+      }`}
+    />
   );
 }
 
@@ -173,10 +271,29 @@ export function MeetingRoomView({
   const [clockText, setClockText] = useState("18:32");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Media & Accessibility States
+  // Media, Device & Accessibility States
   const [isMuted, setIsMuted] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(true);
-  const [, setIsVirtualCamera] = useState(false);
+  const [isVirtualCamera, setIsVirtualCamera] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<
+    "user" | "environment"
+  >("user");
+  const [micInputLevel, setMicInputLevel] = useState<number>(0);
+
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceOption[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceOption[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceOption[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>("");
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string>("");
+  const [selectedCamId, setSelectedCamId] = useState<string>("");
+  const [openDeviceMenu, setOpenDeviceMenu] = useState<
+    null | "mic" | "camera"
+  >(null);
+
+  const [audioWakeTick, setAudioWakeTick] = useState<number>(0);
+  const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] =
+    useState<boolean>(false);
+
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
@@ -187,8 +304,12 @@ export function MeetingRoomView({
   const [isCallEnded, setIsCallEnded] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<StageLayoutMode>("auto");
+  const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(
+    null
+  );
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMobileToolsSheet, setShowMobileToolsSheet] = useState(false);
+  const [showMobileDeviceModal, setShowMobileDeviceModal] = useState(false);
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [a11yLiveText, setA11yLiveText] = useState(
@@ -214,6 +335,10 @@ export function MeetingRoomView({
   const localStreamRef = useRef<MediaStream | null>(null);
   const stopVirtualCamRef = useRef<(() => void) | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const unlockAudioCtxRef = useRef<AudioContext | null>(null);
+  const micAnalyserCtxRef = useRef<AudioContext | null>(null);
+  const micMeterRafRef = useRef<number | null>(null);
+  const isCaptionsOnRef = useRef<boolean>(false);
   const speechRecognitionRef = useRef<{ stop: () => void } | null>(null);
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
@@ -265,7 +390,7 @@ export function MeetingRoomView({
     setA11yLiveText(msg);
     setTimeout(() => {
       setStatusToast((prev) => (prev === msg ? null : prev));
-    }, 3500);
+    }, 3800);
   }, []);
 
   const navigateBackHome = useCallback(() => {
@@ -281,6 +406,242 @@ export function MeetingRoomView({
     typeof window !== "undefined" ? window.location.origin : undefined
   );
 
+  /**
+   * Unlocks the browser's mobile/desktop audio playback pipeline and nudges all
+   * <RemoteAudioTrackPlayer /> instances to call .play() immediately.
+   */
+  const unlockAndNudgeRemoteAudio = useCallback(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
+        if (AudioCtx) {
+          if (!unlockAudioCtxRef.current) {
+            unlockAudioCtxRef.current = new AudioCtx();
+          }
+          if (unlockAudioCtxRef.current.state === "suspended") {
+            unlockAudioCtxRef.current.resume().catch(() => {});
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    setAudioWakeTick((t) => t + 1);
+  }, []);
+
+  // Automatically retry unlocking remote audio on any touch/click/key in the room
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onUserInteract = () => {
+      if (
+        unlockAudioCtxRef.current &&
+        unlockAudioCtxRef.current.state === "suspended"
+      ) {
+        unlockAudioCtxRef.current.resume().catch(() => {});
+      }
+      if (isAudioAutoplayBlocked) {
+        setAudioWakeTick((t) => t + 1);
+      }
+    };
+    const onVisibility = () => {
+      if (!document.hidden) {
+        setAudioWakeTick((t) => t + 1);
+      }
+    };
+    window.addEventListener("pointerdown", onUserInteract, { passive: true });
+    window.addEventListener("touchstart", onUserInteract, { passive: true });
+    window.addEventListener("keydown", onUserInteract);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pointerdown", onUserInteract);
+      window.removeEventListener("touchstart", onUserInteract);
+      window.removeEventListener("keydown", onUserInteract);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [isAudioAutoplayBlocked]);
+
+  // Enumerate connected microphones, speakers, and cameras (PC & Mobile)
+  const refreshMediaDevices = useCallback(async () => {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.enumerateDevices !== "function"
+    ) {
+      return;
+    }
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const mics: MediaDeviceOption[] = [];
+      const speakers: MediaDeviceOption[] = [];
+      const cams: MediaDeviceOption[] = [];
+
+      list.forEach((d, idx) => {
+        if (d.kind === "audioinput") {
+          mics.push({
+            deviceId: d.deviceId,
+            label: d.label || `Microfone ${mics.length + 1}`,
+          });
+        } else if (d.kind === "audiooutput") {
+          speakers.push({
+            deviceId: d.deviceId,
+            label: d.label || `Alto-falante ${speakers.length + 1}`,
+          });
+        } else if (d.kind === "videoinput") {
+          cams.push({
+            deviceId: d.deviceId,
+            label: d.label || `Câmera ${idx + 1}`,
+          });
+        }
+      });
+
+      setAudioInputs(mics);
+      setAudioOutputs(speakers);
+      setVideoInputs(cams);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMediaDevices();
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.mediaDevices &&
+      typeof navigator.mediaDevices.addEventListener === "function"
+    ) {
+      navigator.mediaDevices.addEventListener(
+        "devicechange",
+        refreshMediaDevices
+      );
+      return () => {
+        navigator.mediaDevices.removeEventListener(
+          "devicechange",
+          refreshMediaDevices
+        );
+      };
+    }
+  }, [refreshMediaDevices]);
+
+  /**
+   * Real-time Microphone RMS Level Analyser so PC & Mobile users visually see
+   * whether their microphone is picking up voice and broadcast real speaking state.
+   */
+  const startMicLevelMonitor = useCallback((stream: MediaStream | null) => {
+    if (micMeterRafRef.current !== null) {
+      cancelAnimationFrame(micMeterRafRef.current);
+      micMeterRafRef.current = null;
+    }
+    if (micAnalyserCtxRef.current) {
+      micAnalyserCtxRef.current.close().catch(() => {});
+      micAnalyserCtxRef.current = null;
+    }
+
+    const audioTrack = stream
+      ?.getAudioTracks()
+      .find((t) => t.readyState === "live" && t.enabled);
+    if (!audioTrack || typeof window === "undefined") {
+      setMicInputLevel(0);
+      return;
+    }
+
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      const source = ctx.createMediaStreamSource(new MediaStream([audioTrack]));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      micAnalyserCtxRef.current = ctx;
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let lastSpeakingSent = false;
+      let lastSentAt = 0;
+
+      const tick = () => {
+        if (!audioTrack || audioTrack.readyState !== "live" || !audioTrack.enabled) {
+          setMicInputLevel(0);
+          return;
+        }
+        analyser.getByteTimeDomainData(data);
+        let sumSq = 0;
+        for (let i = 0; i < data.length; i++) {
+          const norm = (data[i] - 128) / 128;
+          sumSq += norm * norm;
+        }
+        const rms = Math.sqrt(sumSq / data.length);
+        const level = Math.min(100, Math.round(rms * 320));
+        setMicInputLevel(level);
+
+        const speakingNow = level > 8;
+        const now = Date.now();
+        if (speakingNow !== lastSpeakingSent && now - lastSentAt > 450) {
+          lastSpeakingSent = speakingNow;
+          lastSentAt = now;
+          webrtcEngineRef.current?.updateLocalParticipantMeta({
+            isSpeaking: speakingNow,
+          });
+          setParticipants((prev) =>
+            prev.map((p) =>
+              p.isLocal ? { ...p, isSpeaking: speakingNow } : p
+            )
+          );
+        }
+
+        micMeterRafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  /**
+   * Builds the effective outbound MediaStream combining:
+   * - Screen share video (if presenting) OR local camera video (if camera ON)
+   * - Local microphone audio (if captured) OR screen share system audio
+   */
+  const getEffectiveOutboundStream = useCallback((): MediaStream | null => {
+    const combined = new MediaStream();
+    const screenVideo = screenStreamRef.current
+      ?.getVideoTracks()
+      .find((t) => t.readyState === "live");
+    const camVideo = localStreamRef.current
+      ?.getVideoTracks()
+      .find((t) => t.readyState === "live");
+
+    if (screenVideo) {
+      combined.addTrack(screenVideo);
+    } else if (camVideo) {
+      combined.addTrack(camVideo);
+    }
+
+    const micAudio = localStreamRef.current
+      ?.getAudioTracks()
+      .find((t) => t.readyState === "live");
+    const screenAudio = screenStreamRef.current
+      ?.getAudioTracks()
+      .find((t) => t.readyState === "live");
+
+    if (micAudio) {
+      combined.addTrack(micAudio);
+    } else if (screenAudio) {
+      combined.addTrack(screenAudio);
+    }
+
+    return combined.getTracks().length > 0 ? combined : null;
+  }, []);
+
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -291,13 +652,13 @@ export function MeetingRoomView({
     updateClock();
     const timer = setInterval(() => {
       updateClock();
-      if (!inPreJoinLobby) {
+      if (!inPreJoinLobby && !isCallEnded) {
         setElapsedSeconds((prev) => prev + 1);
       }
       setRecordingTickMs(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, [inPreJoinLobby]);
+  }, [inPreJoinLobby, isCallEnded]);
 
   const refreshVault = useCallback(async () => {
     const list = await listRecordingsFromVault();
@@ -308,8 +669,11 @@ export function MeetingRoomView({
     refreshVault();
   }, [refreshVault]);
 
+  // Connect WebRTC + PeerJS Engine whenever inside the active call
   useEffect(() => {
-    if (inPreJoinLobby) return;
+    if (inPreJoinLobby || isCallEnded) return;
+
+    unlockAndNudgeRemoteAudio();
 
     const localId = localPeerIdRef.current;
     const effectiveName = displayName.trim()
@@ -318,18 +682,20 @@ export function MeetingRoomView({
       ? "Organizador"
       : `Participante ${localId.slice(-3).toUpperCase()}`;
 
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.isLocal
-          ? {
-              ...p,
-              id: localId,
-              name: `${effectiveName} (Você)`,
-              role: isCreatorRole ? "HOST" : "PARTICIPANT",
-            }
-          : p
-      )
-    );
+    setParticipants((prev) => [
+      ...prev
+        .filter((p) => p.isLocal)
+        .map((p) => ({
+          ...p,
+          id: localId,
+          name: `${effectiveName} (Você)`,
+          role: (isCreatorRole ? "HOST" : "PARTICIPANT") as
+            | "HOST"
+            | "PARTICIPANT",
+          isMuted,
+          isCameraOff,
+        })),
+    ]);
 
     const engine = new FreetingWebRtcRoomEngine({
       roomCode,
@@ -380,6 +746,11 @@ export function MeetingRoomView({
               p.id === payload.participantId ? { ...p, ...payload.patch } : p
             )
           );
+        } else if (payload.type === "MEDIA_SYNC") {
+          // Remote participant toggled mic/camera/screen -> wake up audio/video playback immediately!
+          setAudioWakeTick((t) => t + 1);
+        } else if (payload.type === "ROOM_LOCK_STATE") {
+          setIsRoomLocked(payload.locked);
         } else if (payload.type === "PEER_LEAVE") {
           setParticipants((prev) => {
             const leaving = prev.find((p) => p.id === payload.participantId);
@@ -388,6 +759,9 @@ export function MeetingRoomView({
             }
             return prev.filter((p) => p.id !== payload.participantId);
           });
+          setPinnedParticipantId((prevPin) =>
+            prevPin === payload.participantId ? null : prevPin
+          );
         } else if (payload.type === "CHAT_MESSAGE") {
           setChatMessages((prev) => {
             if (prev.some((m) => m.id === payload.message.id)) return prev;
@@ -403,9 +777,32 @@ export function MeetingRoomView({
         }
       },
       onRemoteStream: (peerId, stream) => {
-        setParticipants((prev) =>
-          prev.map((p) => (p.id === peerId ? { ...p, stream } : p))
-        );
+        setParticipants((prev) => {
+          const exists = prev.some((p) => p.id === peerId);
+          if (!exists) {
+            return [
+              ...prev,
+              {
+                id: peerId,
+                name: `Participante ${peerId.slice(-3).toUpperCase()}`,
+                role: "PARTICIPANT",
+                isLocal: false,
+                isMuted: false,
+                isCameraOff: false,
+                isScreenSharing: false,
+                isHandRaised: false,
+                isSpeaking: false,
+                avatarColor: pickAvatarColor(peerId),
+                joinedAtIso: new Date().toISOString(),
+                stream,
+              },
+            ];
+          }
+          return prev.map((p) => (p.id === peerId ? { ...p, stream } : p));
+        });
+        // If recording is active, dynamically mix this remote participant's audio into the recording!
+        recorderRef.current?.attachAudioStream(stream);
+        setAudioWakeTick((t) => t + 1);
       },
     });
 
@@ -417,13 +814,13 @@ export function MeetingRoomView({
         role: isCreatorRole ? "HOST" : "PARTICIPANT",
         isMuted,
         isCameraOff,
-        isScreenSharing: false,
-        isHandRaised: false,
-        isSpeaking: !isMuted,
+        isScreenSharing,
+        isHandRaised,
+        isSpeaking: false,
         avatarColor: pickAvatarColor(effectiveName + localId),
         joinedAtIso: new Date().toISOString(),
       },
-      localStreamRef.current,
+      getEffectiveOutboundStream(),
       isCreatorRole
     );
 
@@ -431,14 +828,24 @@ export function MeetingRoomView({
       engine.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inPreJoinLobby, roomCode]);
+  }, [inPreJoinLobby, isCallEnded, roomCode]);
 
   useEffect(() => {
     return () => {
+      if (micMeterRafRef.current !== null) {
+        cancelAnimationFrame(micMeterRafRef.current);
+      }
+      if (micAnalyserCtxRef.current) {
+        micAnalyserCtxRef.current.close().catch(() => {});
+      }
+      if (unlockAudioCtxRef.current) {
+        unlockAudioCtxRef.current.close().catch(() => {});
+      }
       if (stopVirtualCamRef.current) {
         stopVirtualCamRef.current();
         stopVirtualCamRef.current = null;
       }
+      isCaptionsOnRef.current = false;
       if (speechRecognitionRef.current) {
         try {
           speechRecognitionRef.current.stop();
@@ -455,7 +862,10 @@ export function MeetingRoomView({
     (el: HTMLVideoElement | null) => {
       localVideoElRef.current = el;
       if (el && localStreamRef.current && !isCameraOff) {
-        el.srcObject = localStreamRef.current;
+        if (el.srcObject !== localStreamRef.current) {
+          el.srcObject = localStreamRef.current;
+        }
+        el.muted = true;
         el.play().catch(() => {});
       }
     },
@@ -466,7 +876,10 @@ export function MeetingRoomView({
     (el: HTMLVideoElement | null) => {
       lobbyVideoElRef.current = el;
       if (el && localStreamRef.current && !isCameraOff) {
-        el.srcObject = localStreamRef.current;
+        if (el.srcObject !== localStreamRef.current) {
+          el.srcObject = localStreamRef.current;
+        }
+        el.muted = true;
         el.play().catch(() => {});
       }
     },
@@ -477,7 +890,10 @@ export function MeetingRoomView({
     (el: HTMLVideoElement | null) => {
       screenVideoElRef.current = el;
       if (el && screenStreamRef.current && isScreenSharing) {
-        el.srcObject = screenStreamRef.current;
+        if (el.srcObject !== screenStreamRef.current) {
+          el.srcObject = screenStreamRef.current;
+        }
+        el.muted = true;
         el.play().catch(() => {});
       }
     },
@@ -493,43 +909,145 @@ export function MeetingRoomView({
     }, 2600);
   };
 
-  const handleToggleMic = useCallback(async () => {
-    if (isMuted) {
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
-        if (localStreamRef.current) {
-          localStreamRef.current
-            .getAudioTracks()
-            .forEach((old) => localStreamRef.current?.removeTrack(old));
-          audioStream.getAudioTracks().forEach((t) => {
-            localStreamRef.current?.addTrack(t);
-          });
-        } else {
-          localStreamRef.current = audioStream;
-        }
-        webrtcEngineRef.current?.updateLocalStream(localStreamRef.current);
-        showToast("Microfone ativado");
-      } catch {
-        showToast("Microfone ativado (modo simulado)");
+  /**
+   * Acquires or switches hardware microphone track cleanly without leaking previous streams,
+   * applies echoCancellation + noiseSuppression + autoGainControl, and resumes remote audio on mobile.
+   */
+  const acquireMicrophoneTrack = useCallback(
+    async (preferredDeviceId?: string): Promise<boolean> => {
+      unlockAndNudgeRemoteAudio();
+
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getUserMedia !== "function"
+      ) {
+        showToast(
+          "Microfone indisponível sem HTTPS. Acesse via https://freeting.vercel.app."
+        );
+        return false;
       }
+
+      const targetDeviceId = preferredDeviceId ?? selectedMicId;
+
+      try {
+        let audioStream: MediaStream;
+        try {
+          audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              ...(targetDeviceId ? { deviceId: { exact: targetDeviceId } } : {}),
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        } catch {
+          // Fallback to default microphone if specific deviceId constraint failed
+          audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        }
+
+        const newTrack = audioStream.getAudioTracks()[0];
+        if (!newTrack) {
+          showToast("Nenhuma faixa de áudio encontrada no microfone.");
+          return false;
+        }
+        newTrack.enabled = true;
+
+        const usedDeviceId = newTrack.getSettings?.().deviceId;
+        if (usedDeviceId) {
+          setSelectedMicId(usedDeviceId);
+        }
+
+        if (!localStreamRef.current) {
+          localStreamRef.current = new MediaStream();
+        }
+        // Stop and remove any previous audio tracks so hardware mic never conflicts
+        localStreamRef.current.getAudioTracks().forEach((old) => {
+          if (old !== newTrack) {
+            old.stop();
+            localStreamRef.current?.removeTrack(old);
+          }
+        });
+        localStreamRef.current.addTrack(newTrack);
+
+        recorderRef.current?.attachAudioStream(localStreamRef.current);
+        webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
+        startMicLevelMonitor(localStreamRef.current);
+        refreshMediaDevices();
+
+        // Critical for iOS Safari & Android: resume remote <audio> elements after VoiceChat hardware mode switch!
+        unlockAndNudgeRemoteAudio();
+        setTimeout(() => unlockAndNudgeRemoteAudio(), 280);
+
+        return true;
+      } catch {
+        showToast(
+          "Permissão negada ou nenhum microfone detectado no dispositivo."
+        );
+        return false;
+      }
+    },
+    [
+      selectedMicId,
+      getEffectiveOutboundStream,
+      startMicLevelMonitor,
+      refreshMediaDevices,
+      unlockAndNudgeRemoteAudio,
+      showToast,
+    ]
+  );
+
+  const handleToggleMic = useCallback(async () => {
+    unlockAndNudgeRemoteAudio();
+
+    if (isMuted) {
+      const existingLiveTrack = localStreamRef.current
+        ?.getAudioTracks()
+        .find((t) => t.readyState === "live");
+
+      if (existingLiveTrack) {
+        existingLiveTrack.enabled = true;
+        setIsMuted(false);
+        webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
+        webrtcEngineRef.current?.updateLocalParticipantMeta({
+          isMuted: false,
+        });
+        setParticipants((prev) =>
+          prev.map((p) => (p.isLocal ? { ...p, isMuted: false } : p))
+        );
+        startMicLevelMonitor(localStreamRef.current);
+        showToast("Microfone ativado");
+        return;
+      }
+
+      const ok = await acquireMicrophoneTrack();
+      if (!ok) {
+        // Keep muted = true so UI never misleads user into thinking mic is live when hardware failed
+        setIsMuted(true);
+        return;
+      }
+
       setIsMuted(false);
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isMuted: false,
-        isSpeaking: true,
       });
       setParticipants((prev) =>
-        prev.map((p) =>
-          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p
-        )
+        prev.map((p) => (p.isLocal ? { ...p, isMuted: false } : p))
       );
+      showToast("Microfone ativado");
     } else {
       localStreamRef.current
         ?.getAudioTracks()
         .forEach((t) => (t.enabled = false));
+      setMicInputLevel(0);
       setIsMuted(true);
-      showToast("Microfone desativado");
+      webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isMuted: true,
         isSpeaking: false,
@@ -539,42 +1057,107 @@ export function MeetingRoomView({
           p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p
         )
       );
+      showToast("Microfone desativado");
     }
-  }, [isMuted, showToast]);
+  }, [
+    isMuted,
+    acquireMicrophoneTrack,
+    getEffectiveOutboundStream,
+    startMicLevelMonitor,
+    unlockAndNudgeRemoteAudio,
+    showToast,
+  ]);
 
-  const handleToggleCamera = useCallback(async () => {
-    if (isCameraOff) {
-      let videoStream: MediaStream | null = null;
-      let usingVirtual = false;
+  /**
+   * Acquires or switches camera (supporting Desktop webcam deviceId AND Mobile front/back facingMode)
+   * without touching or interrupting the microphone audio track!
+   */
+  const acquireCameraTrack = useCallback(
+    async (options?: {
+      facingMode?: "user" | "environment";
+      deviceId?: string;
+    }): Promise<void> => {
+      unlockAndNudgeRemoteAudio();
+
+      const desiredFacing = options?.facingMode ?? cameraFacingMode;
+      const desiredDeviceId = options?.deviceId ?? selectedCamId;
       const labelName = displayName.trim() || "Você";
 
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: !isMuted,
-        });
-      } catch {
+      if (stopVirtualCamRef.current) {
+        stopVirtualCamRef.current();
+        stopVirtualCamRef.current = null;
+      }
+
+      // Stop old video tracks BEFORE requesting new camera (required on Android/iOS when flipping front <-> back camera!)
+      localStreamRef.current?.getVideoTracks().forEach((old) => {
+        old.stop();
+        localStreamRef.current?.removeTrack(old);
+      });
+
+      let acquiredVideoStream: MediaStream | null = null;
+      let usingVirtual = false;
+
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.mediaDevices &&
+        typeof navigator.mediaDevices.getUserMedia === "function"
+      ) {
+        try {
+          if (desiredDeviceId && !options?.facingMode) {
+            acquiredVideoStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                deviceId: { exact: desiredDeviceId },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
+            });
+          } else {
+            acquiredVideoStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: { ideal: desiredFacing },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
+            });
+          }
+        } catch {
+          try {
+            acquiredVideoStream = await navigator.mediaDevices.getUserMedia({
+              video: options?.facingMode
+                ? { facingMode: desiredFacing }
+                : true,
+            });
+          } catch {
+            acquiredVideoStream = null;
+          }
+        }
+      }
+
+      if (!acquiredVideoStream) {
         const virtualCam = createVirtualCameraStream(labelName, roomCode);
-        videoStream = virtualCam.stream;
+        acquiredVideoStream = virtualCam.stream;
         stopVirtualCamRef.current = virtualCam.stopVirtualCamera;
         usingVirtual = true;
       }
 
-      if (
-        localStreamRef.current &&
-        localStreamRef.current.getAudioTracks().length > 0 &&
-        videoStream &&
-        videoStream.getAudioTracks().length === 0
-      ) {
-        localStreamRef.current
-          .getAudioTracks()
-          .forEach((at) => videoStream?.addTrack(at));
+      const newVideoTrack = acquiredVideoStream.getVideoTracks()[0];
+      if (!localStreamRef.current) {
+        localStreamRef.current = new MediaStream();
+      }
+      if (newVideoTrack) {
+        newVideoTrack.enabled = true;
+        localStreamRef.current.addTrack(newVideoTrack);
+        const camSettings = newVideoTrack.getSettings?.();
+        if (camSettings?.deviceId && !usingVirtual) {
+          setSelectedCamId(camSettings.deviceId);
+        }
       }
 
-      localStreamRef.current = videoStream;
+      setCameraFacingMode(desiredFacing);
       setIsVirtualCamera(usingVirtual);
       setIsCameraOff(false);
-      webrtcEngineRef.current?.updateLocalStream(videoStream);
+
+      webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isCameraOff: false,
       });
@@ -582,16 +1165,46 @@ export function MeetingRoomView({
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
       );
 
-      if (localVideoElRef.current && videoStream) {
-        localVideoElRef.current.srcObject = videoStream;
+      if (localVideoElRef.current) {
+        localVideoElRef.current.srcObject = localStreamRef.current;
+        localVideoElRef.current.muted = true;
         localVideoElRef.current.play().catch(() => {});
       }
-      if (lobbyVideoElRef.current && videoStream) {
-        lobbyVideoElRef.current.srcObject = videoStream;
+      if (lobbyVideoElRef.current) {
+        lobbyVideoElRef.current.srcObject = localStreamRef.current;
+        lobbyVideoElRef.current.muted = true;
         lobbyVideoElRef.current.play().catch(() => {});
       }
 
-      showToast(usingVirtual ? "Câmera Studio HD ativada" : "Câmera ativada");
+      refreshMediaDevices();
+      unlockAndNudgeRemoteAudio();
+      setTimeout(() => unlockAndNudgeRemoteAudio(), 250);
+
+      showToast(
+        usingVirtual
+          ? "Sem câmera física — Câmera Virtual Studio ativada"
+          : options?.facingMode
+          ? desiredFacing === "environment"
+            ? "Câmera traseira ativada"
+            : "Câmera frontal ativada"
+          : "Câmera ativada"
+      );
+    },
+    [
+      cameraFacingMode,
+      selectedCamId,
+      displayName,
+      roomCode,
+      getEffectiveOutboundStream,
+      refreshMediaDevices,
+      unlockAndNudgeRemoteAudio,
+      showToast,
+    ]
+  );
+
+  const handleToggleCamera = useCallback(async () => {
+    if (isCameraOff) {
+      await acquireCameraTrack();
     } else {
       if (stopVirtualCamRef.current) {
         stopVirtualCamRef.current();
@@ -603,6 +1216,7 @@ export function MeetingRoomView({
       });
       setIsCameraOff(true);
       setIsVirtualCamera(false);
+      webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isCameraOff: true,
       });
@@ -611,16 +1225,52 @@ export function MeetingRoomView({
       );
       showToast("Câmera desativada");
     }
-  }, [isCameraOff, isMuted, displayName, roomCode, showToast]);
+  }, [isCameraOff, acquireCameraTrack, getEffectiveOutboundStream, showToast]);
+
+  const handleFlipMobileCamera = useCallback(async () => {
+    const nextFacing = cameraFacingMode === "user" ? "environment" : "user";
+    await acquireCameraTrack({ facingMode: nextFacing });
+  }, [cameraFacingMode, acquireCameraTrack]);
+
+  const handleSelectMicDevice = async (deviceId: string) => {
+    setSelectedMicId(deviceId);
+    setOpenDeviceMenu(null);
+    const ok = await acquireMicrophoneTrack(deviceId);
+    if (ok) {
+      setIsMuted(false);
+      webrtcEngineRef.current?.updateLocalParticipantMeta({ isMuted: false });
+      setParticipants((prev) =>
+        prev.map((p) => (p.isLocal ? { ...p, isMuted: false } : p))
+      );
+      showToast("Microfone alterado");
+    }
+  };
+
+  const handleSelectSpeakerDevice = (deviceId: string) => {
+    setSelectedSpeakerId(deviceId);
+    setOpenDeviceMenu(null);
+    setAudioWakeTick((t) => t + 1);
+    showToast("Saída de áudio alterada");
+  };
+
+  const handleSelectCameraDevice = async (deviceId: string) => {
+    setSelectedCamId(deviceId);
+    setOpenDeviceMenu(null);
+    await acquireCameraTrack({ deviceId });
+  };
 
   const handleToggleScreenShare = async () => {
+    unlockAndNudgeRemoteAudio();
+
     if (!isScreenSharing) {
       if (
         typeof navigator === "undefined" ||
         !navigator.mediaDevices ||
         typeof navigator.mediaDevices.getDisplayMedia !== "function"
       ) {
-        showToast("Compartilhamento de tela não suportado neste navegador mobile");
+        showToast(
+          "Compartilhamento de tela disponível apenas em navegadores de computador."
+        );
         return;
       }
       try {
@@ -632,25 +1282,35 @@ export function MeetingRoomView({
         const videoTrack = displayStream.getVideoTracks()[0];
         if (videoTrack) {
           videoTrack.onended = () => {
-            setIsScreenSharing(false);
             screenStreamRef.current = null;
+            setIsScreenSharing(false);
             webrtcEngineRef.current?.updateLocalParticipantMeta({
               isScreenSharing: false,
+              isCameraOff,
             });
-            if (localStreamRef.current) {
-              webrtcEngineRef.current?.updateLocalStream(
-                localStreamRef.current
-              );
-            }
+            setParticipants((prev) =>
+              prev.map((p) =>
+                p.isLocal
+                  ? { ...p, isScreenSharing: false, isCameraOff }
+                  : p
+              )
+            );
+            webrtcEngineRef.current?.updateLocalStream(
+              getEffectiveOutboundStream()
+            );
             showToast("Apresentação de tela encerrada");
           };
         }
         setIsScreenSharing(true);
+        setParticipants((prev) =>
+          prev.map((p) => (p.isLocal ? { ...p, isScreenSharing: true } : p))
+        );
         webrtcEngineRef.current?.updateLocalParticipantMeta({
           isScreenSharing: true,
           isCameraOff: false,
         });
-        webrtcEngineRef.current?.updateLocalStream(displayStream);
+        // Keeps microphone audio track combined with the shared screen video track!
+        webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
         if (screenVideoElRef.current) {
           screenVideoElRef.current.srcObject = displayStream;
           screenVideoElRef.current.play().catch(() => {});
@@ -663,13 +1323,16 @@ export function MeetingRoomView({
       releaseMediaStream(screenStreamRef.current);
       screenStreamRef.current = null;
       setIsScreenSharing(false);
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.isLocal ? { ...p, isScreenSharing: false, isCameraOff } : p
+        )
+      );
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isScreenSharing: false,
         isCameraOff,
       });
-      if (localStreamRef.current) {
-        webrtcEngineRef.current?.updateLocalStream(localStreamRef.current);
-      }
+      webrtcEngineRef.current?.updateLocalStream(getEffectiveOutboundStream());
       showToast("Apresentação de tela encerrada");
     }
   };
@@ -681,9 +1344,12 @@ export function MeetingRoomView({
       });
       recorderRef.current = recorder;
 
+      const remotePresenter = participants.find(
+        (p) => !p.isLocal && p.isScreenSharing && p.stream
+      );
       const primaryStream = isScreenSharing
         ? screenStreamRef.current
-        : localStreamRef.current;
+        : remotePresenter?.stream || localStreamRef.current;
 
       await recorder.start({
         primaryVideoStream: primaryStream,
@@ -716,7 +1382,7 @@ export function MeetingRoomView({
       });
       showToast("● Gravação iniciada");
     } catch {
-      showToast("Erro ao iniciar gravação no navegador.");
+      showToast("Erro ao iniciar gravação neste navegador.");
     }
   }, [roomCode, isScreenSharing, participants, captions, clockText, showToast]);
 
@@ -754,6 +1420,7 @@ export function MeetingRoomView({
   const handleToggleCaptions = useCallback(() => {
     const next = !isCaptionsOn;
     setIsCaptionsOn(next);
+    isCaptionsOnRef.current = next;
 
     if (next) {
       const localSpeaker = displayName.trim() || "Você";
@@ -765,11 +1432,14 @@ export function MeetingRoomView({
       };
       setCaptions((prev) => [...prev, entry]);
       webrtcEngineRef.current?.broadcast({ type: "CAPTION", entry });
-      showToast("Legendas em Português (CC) ativadas");
 
       if (typeof window !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRec =
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).SpeechRecognition ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).webkitSpeechRecognition;
         if (SpeechRec) {
           try {
             const recognition = new SpeechRec();
@@ -803,11 +1473,26 @@ export function MeetingRoomView({
                 }
               }
             };
+            // Auto-restart SpeechRecognition on Android/Desktop Chrome when silence ends session
+            recognition.onend = () => {
+              if (isCaptionsOnRef.current) {
+                try {
+                  recognition.start();
+                } catch {
+                  // ignore
+                }
+              }
+            };
             recognition.start();
             speechRecognitionRef.current = recognition;
+            showToast("Legendas em Português (CC) ativadas");
           } catch {
-            // Browser speech recognition not active
+            showToast("Legendas ativadas (exibindo falas recebidas na sala)");
           }
+        } else {
+          showToast(
+            "Legendas ativadas (recebendo transcrições dos participantes)"
+          );
         }
       }
     } else {
@@ -822,6 +1507,18 @@ export function MeetingRoomView({
       showToast("Legendas ao vivo desativadas");
     }
   }, [isCaptionsOn, displayName, clockText, lgpdAutoMask, showToast]);
+
+  const handleToggleHandRaise = useCallback(() => {
+    const next = !isHandRaised;
+    setIsHandRaised(next);
+    showToast(next ? "✋ Mão levantada" : "Mão abaixada");
+    webrtcEngineRef.current?.updateLocalParticipantMeta({
+      isHandRaised: next,
+    });
+    setParticipants((prev) =>
+      prev.map((p) => (p.isLocal ? { ...p, isHandRaised: next } : p))
+    );
+  }, [isHandRaised, showToast]);
 
   useEffect(() => {
     if (inPreJoinLobby) return;
@@ -850,7 +1547,7 @@ export function MeetingRoomView({
         handleToggleCaptions();
       } else if (e.altKey && e.key.toLowerCase() === "h") {
         e.preventDefault();
-        setIsHandRaised((prev) => !prev);
+        handleToggleHandRaise();
       } else if (e.key === "?") {
         e.preventDefault();
         setShowShortcutsModal((v) => !v);
@@ -865,6 +1562,7 @@ export function MeetingRoomView({
     handleStartUnlimitedRecording,
     handleStopAndDownloadRecording,
     handleToggleCaptions,
+    handleToggleHandRaise,
     recordingSession,
   ]);
 
@@ -960,10 +1658,16 @@ export function MeetingRoomView({
     if (recorderRef.current && recordingSession) {
       await handleStopAndDownloadRecording();
     }
+    if (micMeterRafRef.current !== null) {
+      cancelAnimationFrame(micMeterRafRef.current);
+      micMeterRafRef.current = null;
+    }
     if (stopVirtualCamRef.current) {
       stopVirtualCamRef.current();
       stopVirtualCamRef.current = null;
     }
+    isCaptionsOnRef.current = false;
+    setIsCaptionsOn(false);
     if (speechRecognitionRef.current) {
       try {
         speechRecognitionRef.current.stop();
@@ -972,7 +1676,12 @@ export function MeetingRoomView({
       }
     }
     releaseMediaStream(localStreamRef.current);
+    localStreamRef.current = null;
     releaseMediaStream(screenStreamRef.current);
+    screenStreamRef.current = null;
+    setIsMuted(true);
+    setIsCameraOff(true);
+    setIsScreenSharing(false);
     webrtcEngineRef.current?.disconnect();
     setIsCallEnded(true);
   };
@@ -1007,18 +1716,6 @@ export function MeetingRoomView({
     await handleCopyRoomLink();
   };
 
-  const handleToggleHandRaise = () => {
-    const next = !isHandRaised;
-    setIsHandRaised(next);
-    showToast(next ? "✋ Mão levantada" : "Mão abaixada");
-    webrtcEngineRef.current?.updateLocalParticipantMeta({
-      isHandRaised: next,
-    });
-    setParticipants((prev) =>
-      prev.map((p) => (p.isLocal ? { ...p, isHandRaised: next } : p))
-    );
-  };
-
   const activeRecDurationSec = recordingSession
     ? Math.floor(
         getEffectiveRecordingDurationMs(recordingSession, recordingTickMs) /
@@ -1026,12 +1723,35 @@ export function MeetingRoomView({
       )
     : 0;
 
+  const remoteScreenSharer = participants.find(
+    (p) => !p.isLocal && p.isScreenSharing && p.stream
+  );
+  const anyPresentationActive = isScreenSharing || !!remoteScreenSharer;
+
+  const pinnedParticipant = pinnedParticipantId
+    ? participants.find((p) => p.id === pinnedParticipantId) || null
+    : null;
+
+  const visibleGridParticipants =
+    layoutMode === "spotlight" && pinnedParticipant
+      ? [pinnedParticipant]
+      : participants;
+
+  const shouldMirrorLocalVideo =
+    cameraFacingMode === "user" && !isVirtualCamera;
+
   // ============================================================================
   // SCREEN 1: PRE-JOIN GREEN ROOM LOBBY ("Pronto para participar?") — Mobile-First
   // ============================================================================
   if (inPreJoinLobby) {
     return (
       <div className="min-h-[100dvh] safe-top safe-bottom bg-white text-[#1f1f1f] flex flex-col">
+        {statusToast && (
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#202124] text-white px-4 py-2 rounded-full text-xs font-medium shadow-xl">
+            {statusToast}
+          </div>
+        )}
+
         <header className="h-14 sm:h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#dadce0]/60 shrink-0">
           <button
             type="button"
@@ -1046,7 +1766,7 @@ export function MeetingRoomView({
         </header>
 
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-          {/* Camera & Mic Preview Box — 4:3 on Mobile so CTA stays visible without scrolling! */}
+          {/* Camera & Mic Preview Box — 4:3 on Mobile so CTA stays visible without scrolling */}
           <div className="lg:col-span-7 bg-[#202124] rounded-3xl aspect-[4/3] sm:aspect-video relative overflow-hidden flex items-center justify-center shadow-xl">
             {!isCameraOff ? (
               <video
@@ -1054,7 +1774,9 @@ export function MeetingRoomView({
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover ${
+                  shouldMirrorLocalVideo ? "-scale-x-100" : ""
+                }`}
               />
             ) : (
               <div className="text-center space-y-2.5 px-4">
@@ -1067,6 +1789,32 @@ export function MeetingRoomView({
               </div>
             )}
 
+            {/* Live Mic Level Pill in Lobby */}
+            {!isMuted && (
+              <div className="absolute top-3.5 left-3.5 bg-black/60 backdrop-blur-xs rounded-full px-3 py-1.5 flex items-center gap-2 text-[11px] text-white">
+                <Mic className="w-3.5 h-3.5 text-[#81c995]" />
+                <div className="w-14 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    style={{ width: `${Math.max(10, micInputLevel)}%` }}
+                    className="h-full bg-[#81c995] transition-all duration-75"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Flip Camera Button in Lobby when Camera is ON */}
+            {!isCameraOff && !isVirtualCamera && (
+              <button
+                type="button"
+                onClick={handleFlipMobileCamera}
+                title="Inverter câmera (Frontal / Traseira)"
+                aria-label="Inverter câmera"
+                className="absolute top-3.5 right-3.5 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer shadow-md"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            )}
+
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
               <button
                 type="button"
@@ -1075,7 +1823,7 @@ export function MeetingRoomView({
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
                   isMuted
                     ? "bg-[#ea4335] text-white active:bg-[#d93025]"
-                    : "bg-[#3c4043]/90 text-white active:bg-[#4e5256]"
+                    : "bg-[#0b57d0] text-white active:bg-[#0842a0]"
                 }`}
               >
                 {isMuted ? (
@@ -1091,7 +1839,7 @@ export function MeetingRoomView({
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
                   isCameraOff
                     ? "bg-[#ea4335] text-white active:bg-[#d93025]"
-                    : "bg-[#3c4043]/90 text-white active:bg-[#4e5256]"
+                    : "bg-[#0b57d0] text-white active:bg-[#0842a0]"
                 }`}
               >
                 {isCameraOff ? (
@@ -1103,10 +1851,11 @@ export function MeetingRoomView({
             </div>
           </div>
 
-          {/* Join Form — 16px input & Full-width Mobile CTA */}
+          {/* Join Form — Unlocks Mobile Audio Pipeline synchronously on Submit */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              unlockAndNudgeRemoteAudio();
               setInPreJoinLobby(false);
             }}
             className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left space-y-4 sm:space-y-5 w-full"
@@ -1178,7 +1927,10 @@ export function MeetingRoomView({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 pt-2">
             <button
               type="button"
-              onClick={() => setIsCallEnded(false)}
+              onClick={() => {
+                setIsCallEnded(false);
+                setInPreJoinLobby(true);
+              }}
               className="h-11 px-5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-sm font-medium cursor-pointer"
             >
               Voltar para a sala
@@ -1213,12 +1965,43 @@ export function MeetingRoomView({
         highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
       }`}
     >
+      {/* ALWAYS-MOUNTED DEDICATED REMOTE AUDIO LAYER (Never unmounts on layout/pin/camera changes!) */}
+      <div className="sr-only" aria-hidden="true">
+        {participants
+          .filter((p) => !p.isLocal && !!p.stream)
+          .map((p) => (
+            <RemoteAudioTrackPlayer
+              key={p.id}
+              stream={p.stream!}
+              wakeTick={audioWakeTick}
+              speakerDeviceId={selectedSpeakerId}
+              onAutoplayBlocked={() => setIsAudioAutoplayBlocked(true)}
+              onAutoplayUnblocked={() => setIsAudioAutoplayBlocked(false)}
+            />
+          ))}
+      </div>
+
       <div role="status" aria-live="polite" className="sr-only">
         {a11yLiveText}
       </div>
 
+      {/* MOBILE AUTOPLAY RECOVERY BANNER — 1-Tap Unblock if iOS Safari / Android Chrome Paused Call Audio */}
+      {isAudioAutoplayBlocked && (
+        <button
+          type="button"
+          onClick={() => {
+            unlockAndNudgeRemoteAudio();
+            setIsAudioAutoplayBlocked(false);
+          }}
+          className="fixed top-15 left-1/2 -translate-x-1/2 z-50 bg-[#0b57d0] hover:bg-[#0842a0] text-white px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-2xl flex items-center gap-2 border border-white/25 animate-bounce cursor-pointer"
+        >
+          <Volume2 className="w-4 h-4 shrink-0" />
+          <span>Toque aqui para ativar o áudio da chamada</span>
+        </button>
+      )}
+
       {statusToast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-4 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-4 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#81c995] shrink-0" />
           <span className="truncate">{statusToast}</span>
         </div>
@@ -1234,6 +2017,15 @@ export function MeetingRoomView({
           <span className="text-xs sm:text-sm font-semibold sm:font-medium text-[#e3e3e3] tracking-wide truncate">
             {roomCode}
           </span>
+          {isRoomLocked && (
+            <span
+              title="Sala bloqueada pelo organizador"
+              className="bg-[#3c4043] text-[#fbbc04] px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0"
+            >
+              <Lock className="w-3 h-3" />
+              <span className="hidden sm:inline">Bloqueada</span>
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setShowReadyCard((v) => !v)}
@@ -1286,6 +2078,19 @@ export function MeetingRoomView({
 
         {/* Right Top Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile Camera Flip Quick Button when Camera is Active */}
+          {!isCameraOff && !isVirtualCamera && (
+            <button
+              type="button"
+              onClick={handleFlipMobileCamera}
+              title="Inverter câmera (Frontal / Traseira)"
+              aria-label="Inverter câmera"
+              className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] flex items-center justify-center text-[#e3e3e3] cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -1360,196 +2165,253 @@ export function MeetingRoomView({
         </div>
       </header>
 
-      {/* MAIN VIDEO STAGE + FLOATING CARDS + ADAPTIVE DRAWER */}
+      {/* MAIN VIDEO STAGE + PRESENTATION STAGE + FLOATING CARDS + ADAPTIVE DRAWER */}
       <div
         className={`flex-1 px-2.5 sm:px-4 py-1 flex ${
-          isScreenSharing ? "flex-col lg:flex-row" : "flex-row"
+          anyPresentationActive ? "flex-col lg:flex-row" : "flex-row"
         } gap-2.5 sm:gap-3 overflow-hidden relative min-h-0`}
       >
-        {/* Screen Share Stage */}
-        {isScreenSharing && (
+        {/* Local OR Remote Screen Share Presentation Stage (Uncropped object-contain on Mobile & PC!) */}
+        {anyPresentationActive && (
           <div className="flex-1 bg-[#0d1520] border-2 border-[#a8c7fa]/40 rounded-2xl relative flex flex-col overflow-hidden min-h-0">
             <div className="bg-[#1e1f20]/90 px-3 sm:px-4 py-2 flex items-center justify-between border-b border-[#3c4043]">
               <span className="text-xs font-medium text-[#a8c7fa] flex items-center gap-2 truncate">
                 <MonitorUp className="w-4 h-4 shrink-0" />
-                Apresentando sua tela
+                {isScreenSharing
+                  ? "Apresentando sua tela"
+                  : `Apresentação de ${remoteScreenSharer?.name}`}
               </span>
-              <button
-                type="button"
-                onClick={handleToggleScreenShare}
-                className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shrink-0 cursor-pointer"
-              >
-                Parar
-              </button>
+              {isScreenSharing ? (
+                <button
+                  type="button"
+                  onClick={handleToggleScreenShare}
+                  className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shrink-0 cursor-pointer"
+                >
+                  Parar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      typeof document !== "undefined" &&
+                      document.documentElement.requestFullscreen
+                    ) {
+                      if (!document.fullscreenElement) {
+                        document.documentElement
+                          .requestFullscreen()
+                          .catch(() => {});
+                      } else {
+                        document.exitFullscreen?.().catch(() => {});
+                      }
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-white text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Tela cheia</span>
+                </button>
+              )}
             </div>
-            <video
-              ref={bindScreenVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="flex-1 w-full h-full object-contain bg-black min-h-0"
-            />
+            <div className="flex-1 min-h-0 bg-black flex items-center justify-center overflow-hidden">
+              {isScreenSharing ? (
+                <video
+                  ref={bindScreenVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-contain bg-black"
+                />
+              ) : (
+                <RemoteVideoSurface
+                  stream={remoteScreenSharer?.stream}
+                  fitMode="contain"
+                />
+              )}
+            </div>
           </div>
         )}
 
         {/* Portrait-Aware Mobile & Desktop Video Stage Grid */}
         <div
           className={`${
-            isScreenSharing
+            anyPresentationActive
               ? "h-28 lg:h-full lg:w-72 shrink-0 flex flex-row lg:flex-col overflow-x-auto no-scrollbar"
               : "flex-1 grid min-h-0"
           } gap-2.5 sm:gap-3 h-full ${
-            !isScreenSharing &&
-            (layoutMode === "spotlight" || participants.length === 1
+            !anyPresentationActive &&
+            (visibleGridParticipants.length === 1
               ? "grid-cols-1 grid-rows-1"
-              : participants.length === 2
+              : visibleGridParticipants.length === 2
               ? "grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1"
-              : participants.length <= 4
+              : visibleGridParticipants.length <= 4
               ? "grid-cols-2 grid-rows-2"
               : "grid-cols-2 lg:grid-cols-3")
           }`}
         >
-          {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
-            (participant) => {
-              const hasRemoteVideo =
-                !participant.isLocal &&
-                !participant.isCameraOff &&
-                !!participant.stream &&
-                participant.stream
-                  .getVideoTracks()
-                  .some((t) => t.readyState === "live");
+          {visibleGridParticipants.map((participant) => {
+            const showRemoteCameraVideo =
+              !participant.isLocal &&
+              !participant.isCameraOff &&
+              !!participant.stream &&
+              participant.stream
+                .getVideoTracks()
+                .some((t) => t.readyState === "live");
 
-              return (
-                <div
-                  key={participant.id}
-                  className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
-                    isScreenSharing
-                      ? "w-40 lg:w-full h-full shrink-0"
-                      : "w-full h-full min-h-0"
-                  } ${
-                    highContrastMode
-                      ? "bg-[#0a192f] border-2 border-yellow-400"
-                      : "bg-[#1b3a6b] border border-white/10"
-                  }`}
-                >
-                  {/* Top-Right Mic Status / Equalizer Badge */}
-                  <div className="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 z-10 flex items-center gap-1.5">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                        participant.isMuted
-                          ? "bg-[#172b4d]/80 text-[#8ab4f8]"
-                          : "bg-[#137333]/90 text-white"
-                      }`}
+            const isThisPinned =
+              layoutMode === "spotlight" &&
+              pinnedParticipantId === participant.id;
+
+            return (
+              <div
+                key={participant.id}
+                className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
+                  anyPresentationActive
+                    ? "w-40 lg:w-full h-full shrink-0"
+                    : "w-full h-full min-h-0"
+                } ${
+                  highContrastMode
+                    ? "bg-[#0a192f] border-2 border-yellow-400"
+                    : participant.isSpeaking && !participant.isMuted
+                    ? "bg-[#1b3a6b] border-2 border-[#81c995]"
+                    : "bg-[#1b3a6b] border border-white/10"
+                }`}
+              >
+                {/* Top-Right Mic Status / Equalizer + Flip Camera on Local Tile */}
+                <div className="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 z-10 flex items-center gap-1.5">
+                  {participant.isLocal && !isCameraOff && !isVirtualCamera && (
+                    <button
+                      type="button"
+                      onClick={handleFlipMobileCamera}
+                      title="Inverter câmera"
+                      aria-label="Inverter câmera"
+                      className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
                     >
-                      {participant.isMuted ? (
-                        <MicOff className="w-3.5 h-3.5" />
-                      ) : (
-                        <div className="flex items-end gap-0.5 h-3">
-                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
-                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
-                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Raised Hand Badge */}
-                  {participant.isHandRaised && (
-                    <div className="absolute top-2.5 left-2.5 sm:top-3.5 sm:left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 shadow-md">
-                      <Hand className="w-3 h-3" />
-                      <span>Mão levantada</span>
-                    </div>
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
                   )}
 
-                  {/* Remote Audio + Video Renderer */}
-                  {!participant.isLocal && (
-                    <RemoteParticipantMedia
-                      stream={participant.stream}
-                      isCameraOff={participant.isCameraOff}
-                      isMuted={participant.isMuted}
-                    />
-                  )}
-
-                  {/* Local Camera Video or Centered Avatar */}
-                  {participant.isLocal && !isCameraOff ? (
-                    <video
-                      ref={bindLocalVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  ) : !hasRemoteVideo ? (
-                    <div className="relative flex items-center justify-center">
-                      <div
-                        style={{ backgroundColor: participant.avatarColor }}
-                        className={`w-18 h-18 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-semibold text-white shadow-lg transition-transform ${
-                          !participant.isMuted
-                            ? "ring-4 ring-[#8ab4f8]/70 scale-105"
-                            : ""
-                        }`}
-                      >
-                        {participant.name.charAt(0).toUpperCase()}
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      participant.isMuted
+                        ? "bg-[#172b4d]/85 text-[#8ab4f8]"
+                        : "bg-[#137333]/90 text-white"
+                    }`}
+                  >
+                    {participant.isMuted ? (
+                      <MicOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <div className="flex items-end gap-0.5 h-3">
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
+                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
                       </div>
-
-                      {/* Desktop Hover Action Pill */}
-                      <div className="hidden sm:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="bg-[#202124]/85 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (
-                                typeof document !== "undefined" &&
-                                document.documentElement.requestFullscreen
-                              ) {
-                                if (!document.fullscreenElement) {
-                                  document.documentElement
-                                    .requestFullscreen()
-                                    .catch(() => {});
-                                } else {
-                                  document.exitFullscreen?.().catch(() => {});
-                                }
-                              }
-                            }}
-                            title="Tela cheia"
-                            className="hover:text-white cursor-pointer"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLayoutMode((m) =>
-                                m === "spotlight" ? "auto" : "spotlight"
-                              )
-                            }
-                            title="Fixar em destaque"
-                            className="hover:text-white cursor-pointer"
-                          >
-                            <Pin className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* Bottom-left Participant Nameplate */}
-                  <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3.5 max-w-[85%] bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium text-white flex items-center gap-1.5 truncate">
-                    <span className="truncate">{participant.name}</span>
-                    <span className="hidden sm:inline text-[10px] text-[#a8c7fa] shrink-0">
-                      •{" "}
-                      {participant.role === "HOST"
-                        ? "Organizador"
-                        : "Participante"}
-                    </span>
+                    )}
                   </div>
                 </div>
-              );
-            }
-          )}
+
+                {/* Raised Hand Badge */}
+                {participant.isHandRaised && (
+                  <div className="absolute top-2.5 left-2.5 sm:top-3.5 sm:left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 shadow-md">
+                    <Hand className="w-3 h-3" />
+                    <span>Mão levantada</span>
+                  </div>
+                )}
+
+                {/* Visual Video Surface (Remote or Local) or Avatar */}
+                {participant.isLocal && !isCameraOff ? (
+                  <video
+                    ref={bindLocalVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${
+                      shouldMirrorLocalVideo ? "-scale-x-100" : ""
+                    }`}
+                  />
+                ) : showRemoteCameraVideo ? (
+                  <RemoteVideoSurface
+                    stream={participant.stream}
+                    fitMode={participant.isScreenSharing ? "contain" : "cover"}
+                  />
+                ) : (
+                  <div className="relative flex items-center justify-center">
+                    <div
+                      style={{ backgroundColor: participant.avatarColor }}
+                      className={`w-18 h-18 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-semibold text-white shadow-lg transition-transform ${
+                        !participant.isMuted
+                          ? "ring-4 ring-[#8ab4f8]/70 scale-105"
+                          : ""
+                      }`}
+                    >
+                      {participant.name.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Hover / Tap Pin & Fullscreen Pill */}
+                <div className="hidden sm:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="pointer-events-auto bg-[#202124]/85 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          typeof document !== "undefined" &&
+                          document.documentElement.requestFullscreen
+                        ) {
+                          if (!document.fullscreenElement) {
+                            document.documentElement
+                              .requestFullscreen()
+                              .catch(() => {});
+                          } else {
+                            document.exitFullscreen?.().catch(() => {});
+                          }
+                        }
+                      }}
+                      title="Tela cheia"
+                      className="hover:text-white cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isThisPinned) {
+                          setLayoutMode("auto");
+                          setPinnedParticipantId(null);
+                        } else {
+                          setPinnedParticipantId(participant.id);
+                          setLayoutMode("spotlight");
+                        }
+                      }}
+                      title={
+                        isThisPinned ? "Desafixar destaque" : "Fixar em destaque"
+                      }
+                      className={`hover:text-white cursor-pointer ${
+                        isThisPinned ? "text-[#a8c7fa]" : ""
+                      }`}
+                    >
+                      <Pin className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bottom-left Participant Nameplate */}
+                <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3.5 max-w-[85%] bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium text-white flex items-center gap-1.5 truncate">
+                  <span className="truncate">{participant.name}</span>
+                  <span className="hidden sm:inline text-[10px] text-[#a8c7fa] shrink-0">
+                    •{" "}
+                    {participant.role === "HOST"
+                      ? "Organizador"
+                      : "Participante"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* FLOATING OVERLAY: "Sua reunião está pronta" (Responsive on Mobile & Desktop) */}
+        {/* FLOATING OVERLAY: "Sua reunião está pronta" */}
         {showReadyCard && (
           <div className="absolute bottom-2 left-2.5 right-2.5 sm:bottom-3 sm:left-6 sm:right-auto z-30 sm:w-[330px] flex flex-col">
             <div className="bg-white text-[#1f1f1f] rounded-2xl p-4 sm:p-5 shadow-2xl">
@@ -1721,11 +2583,18 @@ export function MeetingRoomView({
                               </div>
                             </div>
                           </div>
-                          {p.isMuted ? (
-                            <MicOff className="w-4 h-4 text-[#f28b82] shrink-0" />
-                          ) : (
-                            <Mic className="w-4 h-4 text-[#81c995] shrink-0" />
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {p.isCameraOff ? (
+                              <VideoOff className="w-4 h-4 text-[#9aa0a6]" />
+                            ) : (
+                              <Video className="w-4 h-4 text-[#81c995]" />
+                            )}
+                            {p.isMuted ? (
+                              <MicOff className="w-4 h-4 text-[#f28b82]" />
+                            ) : (
+                              <Mic className="w-4 h-4 text-[#81c995]" />
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1749,7 +2618,10 @@ export function MeetingRoomView({
                         </div>
                       ))}
                     </div>
-                    <form onSubmit={handleSendChat} className="flex gap-2 pt-1 shrink-0">
+                    <form
+                      onSubmit={handleSendChat}
+                      className="flex gap-2 pt-1 shrink-0"
+                    >
                       <input
                         type="text"
                         value={chatDraft}
@@ -1829,7 +2701,8 @@ export function MeetingRoomView({
                         Gravação da reunião
                       </div>
                       <p className="text-[11px] text-[#c4c7c5]">
-                        Grave a reunião para assistir ou compartilhar depois.
+                        Grave a reunião completa com áudio de todos os
+                        participantes para assistir ou baixar depois.
                       </p>
                       {!recordingSession ? (
                         <button
@@ -1887,62 +2760,65 @@ export function MeetingRoomView({
                       <div className="font-semibold text-[#9aa0a6] uppercase tracking-wider text-[10px] mb-2">
                         Gravações recentes ({savedRecordings.length})
                       </div>
-                      {savedRecordings.map((rec) => (
-                        <div
-                          key={rec.sessionId}
-                          className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
-                        >
-                          <div>
-                            <div className="font-medium text-white">
-                              {rec.roomCode}
+                      {savedRecordings.map((rec) => {
+                        const ext = getRecordingFileExtension(rec.mimeType);
+                        return (
+                          <div
+                            key={rec.sessionId}
+                            className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
+                          >
+                            <div>
+                              <div className="font-medium text-white">
+                                {rec.roomCode}
+                              </div>
+                              <div className="text-[10px] text-[#9aa0a6]">
+                                {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
+                                {formatRecordingBytes(rec.totalBytes)}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-[#9aa0a6]">
-                              {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
-                              {formatRecordingBytes(rec.totalBytes)}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                title="Reproduzir gravação"
+                                onClick={async () => {
+                                  const blob =
+                                    await assembleRecordingBlobFromVault(
+                                      rec.sessionId,
+                                      rec.mimeType
+                                    );
+                                  if (blob) {
+                                    const url = URL.createObjectURL(blob);
+                                    setPreviewVideoUrl(url);
+                                  }
+                                }}
+                                className="w-9 h-9 rounded-full bg-[#1e3a2f] text-[#81c995] flex items-center justify-center cursor-pointer"
+                              >
+                                <Play className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Baixar gravação"
+                                onClick={async () => {
+                                  const blob =
+                                    await assembleRecordingBlobFromVault(
+                                      rec.sessionId,
+                                      rec.mimeType
+                                    );
+                                  if (blob) {
+                                    triggerBlobDownload(
+                                      blob,
+                                      `freeting-${rec.roomCode}-${rec.sessionId}.${ext}`
+                                    );
+                                  }
+                                }}
+                                className="w-9 h-9 rounded-full bg-[#0b57d0] text-white flex items-center justify-center cursor-pointer"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              title="Reproduzir gravação"
-                              onClick={async () => {
-                                const blob =
-                                  await assembleRecordingBlobFromVault(
-                                    rec.sessionId,
-                                    rec.mimeType
-                                  );
-                                if (blob) {
-                                  const url = URL.createObjectURL(blob);
-                                  setPreviewVideoUrl(url);
-                                }
-                              }}
-                              className="w-9 h-9 rounded-full bg-[#1e3a2f] text-[#81c995] flex items-center justify-center cursor-pointer"
-                            >
-                              <Play className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Baixar gravação"
-                              onClick={async () => {
-                                const blob =
-                                  await assembleRecordingBlobFromVault(
-                                    rec.sessionId,
-                                    rec.mimeType
-                                  );
-                                if (blob) {
-                                  triggerBlobDownload(
-                                    blob,
-                                    `freeting-${rec.roomCode}-${rec.sessionId}.webm`
-                                  );
-                                }
-                              }}
-                              className="w-9 h-9 rounded-full bg-[#0b57d0] text-white flex items-center justify-center cursor-pointer"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1955,17 +2831,19 @@ export function MeetingRoomView({
                           Bloquear entrada na sala
                         </div>
                         <div className="text-[11px] text-[#9aa0a6]">
-                          Exigir aprovação do organizador
+                          Sinalizar sala bloqueada aos participantes
                         </div>
                       </div>
                       <input
                         type="checkbox"
                         checked={isRoomLocked}
                         onChange={(e) => {
-                          setIsRoomLocked(e.target.checked);
+                          const nextLocked = e.target.checked;
+                          setIsRoomLocked(nextLocked);
+                          webrtcEngineRef.current?.setRoomLocked(nextLocked);
                           showToast(
-                            e.target.checked
-                              ? "Sala bloqueada para novos visitantes"
+                            nextLocked
+                              ? "Sala bloqueada pelo organizador"
                               : "Sala desbloqueada"
                           );
                         }}
@@ -2007,7 +2885,7 @@ export function MeetingRoomView({
       </div>
 
       {/* ========================================================================
-          MOBILE ERGONOMIC 5-BUTTON DOCK (< md) — Never Overflows, Thumb-Perfect
+          MOBILE ERGONOMIC 5-BUTTON DOCK (< md) — Thumb-Perfect & Zero Overflow
          ======================================================================== */}
       <footer className="md:hidden h-18 px-3 flex items-center justify-center shrink-0 relative">
         {showReactionBar && (
@@ -2042,9 +2920,9 @@ export function MeetingRoomView({
             onClick={handleToggleMic}
             aria-pressed={!isMuted}
             aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors relative cursor-pointer ${
               isMuted
-                ? "bg-[#3c4043] text-white"
+                ? "bg-[#ea4335] text-white"
                 : "bg-[#0b57d0] text-white"
             }`}
           >
@@ -2063,7 +2941,7 @@ export function MeetingRoomView({
             aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               isCameraOff
-                ? "bg-[#3c4043] text-white"
+                ? "bg-[#ea4335] text-white"
                 : "bg-[#0b57d0] text-white"
             }`}
           >
@@ -2117,7 +2995,7 @@ export function MeetingRoomView({
         </div>
       </footer>
 
-      {/* MOBILE ALL-TOOLS ACTION SHEET (Chat, Gravar, Legendas, IA, Mão, Pessoas, Segurança) */}
+      {/* MOBILE ALL-TOOLS ACTION SHEET */}
       {showMobileToolsSheet && (
         <div
           role="dialog"
@@ -2144,6 +3022,44 @@ export function MeetingRoomView({
             </div>
 
             <div className="grid grid-cols-3 gap-2.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  unlockAndNudgeRemoteAudio();
+                  showToast("Áudio da chamada sincronizado e ativo");
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <Volume2 className="w-5 h-5 text-[#81c995]" />
+                <span>Ativar Som</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  handleFlipMobileCamera();
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <RefreshCw className="w-5 h-5 text-[#a8c7fa]" />
+                <span>Virar Câmera</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileToolsSheet(false);
+                  refreshMediaDevices();
+                  setShowMobileDeviceModal(true);
+                }}
+                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+              >
+                <Sliders className="w-5 h-5 text-[#a8c7fa]" />
+                <span>Dispositivos</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -2197,36 +3113,12 @@ export function MeetingRoomView({
                 type="button"
                 onClick={() => {
                   setShowMobileToolsSheet(false);
-                  setActiveDrawer("chat");
-                }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
-              >
-                <MessageSquare className="w-5 h-5 text-[#a8c7fa]" />
-                <span>Chat</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMobileToolsSheet(false);
                   setActiveDrawer("ai");
                 }}
                 className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
               >
                 <Sparkles className="w-5 h-5 text-[#a8c7fa]" />
                 <span>Assistente IA</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMobileToolsSheet(false);
-                  handleNativeShareRoomLink();
-                }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
-              >
-                <Share2 className="w-5 h-5 text-[#81c995]" />
-                <span>Convidar</span>
               </button>
 
               <button
@@ -2252,23 +3144,100 @@ export function MeetingRoomView({
                 <Lock className="w-5 h-5 text-[#c4c7c5]" />
                 <span>Segurança</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* MOBILE AUDIO/VIDEO DEVICE MODAL */}
+      {showMobileDeviceModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          onClick={() => setShowMobileDeviceModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-md bg-[#1e1f20] border border-[#3c4043] rounded-t-3xl sm:rounded-3xl p-5 safe-bottom space-y-4 text-xs text-white animate-sheet-up"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                Áudio, Microfone e Câmera
+              </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setShowMobileToolsSheet(false);
-                  setHighContrastMode((v) => !v);
-                }}
-                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
-                  highContrastMode
-                    ? "bg-yellow-400 text-black"
-                    : "bg-[#282a2c] text-white"
-                }`}
+                onClick={() => setShowMobileDeviceModal(false)}
+                className="p-1.5 rounded-full hover:bg-[#282a2c]"
               >
-                <Contrast className="w-5 h-5" />
-                <span>Contraste</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
+
+            <div className="bg-[#282a2c] rounded-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#c4c7c5]">Nível do seu microfone</span>
+                <span className="text-[#81c995] font-semibold">
+                  {isMuted ? "Desativado" : "Captando"}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+                <div
+                  style={{ width: `${isMuted ? 0 : Math.max(6, micInputLevel)}%` }}
+                  className="h-full bg-[#81c995] transition-all duration-75"
+                />
+              </div>
+            </div>
+
+            {audioInputs.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[#9aa0a6] font-medium block">
+                  Microfone
+                </label>
+                <select
+                  value={selectedMicId}
+                  onChange={(e) => handleSelectMicDevice(e.target.value)}
+                  className="w-full bg-[#282a2c] border border-[#3c4043] rounded-xl px-3 py-2.5 text-sm text-white"
+                >
+                  {audioInputs.map((m) => (
+                    <option key={m.deviceId} value={m.deviceId}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {videoInputs.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[#9aa0a6] font-medium block">
+                  Câmera
+                </label>
+                <select
+                  value={selectedCamId}
+                  onChange={(e) => handleSelectCameraDevice(e.target.value)}
+                  className="w-full bg-[#282a2c] border border-[#3c4043] rounded-xl px-3 py-2.5 text-sm text-white"
+                >
+                  {videoInputs.map((c) => (
+                    <option key={c.deviceId} value={c.deviceId}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                unlockAndNudgeRemoteAudio();
+                setShowMobileDeviceModal(false);
+                showToast("Saída de som sincronizada!");
+              }}
+              className="w-full h-11 rounded-full bg-[#0b57d0] text-white font-semibold cursor-pointer"
+            >
+              Concluir e Sincronizar Áudio
+            </button>
           </div>
         </div>
       )}
@@ -2312,13 +3281,16 @@ export function MeetingRoomView({
           aria-label="Controles de mídia e gravação da reunião"
           className="flex items-center gap-2 mx-auto"
         >
-          {/* 1. Split Microphone Pill */}
+          {/* 1. Split Microphone + Speaker Selector Pill (with Live Input Level!) */}
           <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
             <button
               type="button"
-              onClick={handleToggleMic}
-              title="Opções de microfone (Alt+M)"
-              aria-label="Opções de microfone"
+              onClick={() => {
+                refreshMediaDevices();
+                setOpenDeviceMenu((m) => (m === "mic" ? null : "mic"));
+              }}
+              title="Selecionar microfone e alto-falante"
+              aria-label="Opções de microfone e saída de som"
               className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
             >
               <ChevronUp className="w-3.5 h-3.5" />
@@ -2334,7 +3306,7 @@ export function MeetingRoomView({
               }
               className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 isMuted
-                  ? "bg-[#3c4043] text-white hover:bg-[#4e5256]"
+                  ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
                   : "bg-[#0b57d0] text-white"
               }`}
             >
@@ -2344,19 +3316,93 @@ export function MeetingRoomView({
                 <Mic className="w-4 h-4" />
               )}
             </button>
-            {isMuted && (
-              <span className="absolute -top-1 -right-0.5 w-4 h-4 rounded-full bg-[#fbbc04] text-[#1f1f1f] text-[10px] font-bold flex items-center justify-center">
-                !
-              </span>
+
+            {/* Desktop Mic & Speaker Device Picker Popover */}
+            {openDeviceMenu === "mic" && (
+              <div className="absolute bottom-14 left-0 w-80 bg-[#282a2c] border border-[#3c4043] rounded-2xl p-3.5 shadow-2xl z-50 text-xs space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[#9aa0a6] font-semibold">
+                    <span>Nível de entrada do microfone</span>
+                    <span className="text-[#81c995]">
+                      {isMuted ? "Mudo" : `${micInputLevel}%`}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-[#131314] rounded-full overflow-hidden">
+                    <div
+                      style={{
+                        width: `${isMuted ? 0 : Math.max(6, micInputLevel)}%`,
+                      }}
+                      className="h-full bg-[#81c995] transition-all duration-75"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                    Microfones ({audioInputs.length || 1})
+                  </div>
+                  {audioInputs.length === 0 ? (
+                    <div className="px-2 py-1.5 text-[#c4c7c5]">
+                      Ative o microfone para listar dispositivos
+                    </div>
+                  ) : (
+                    audioInputs.map((m) => (
+                      <button
+                        key={m.deviceId}
+                        type="button"
+                        onClick={() => handleSelectMicDevice(m.deviceId)}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
+                          selectedMicId === m.deviceId
+                            ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
+                            : "hover:bg-[#3c4043] text-white"
+                        }`}
+                      >
+                        <span className="truncate">{m.label}</span>
+                        {selectedMicId === m.deviceId && (
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {audioOutputs.length > 0 && (
+                  <div className="space-y-1 border-t border-[#3c4043] pt-2">
+                    <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                      Saída de Som / Alto-falantes
+                    </div>
+                    {audioOutputs.map((s) => (
+                      <button
+                        key={s.deviceId}
+                        type="button"
+                        onClick={() => handleSelectSpeakerDevice(s.deviceId)}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
+                          selectedSpeakerId === s.deviceId
+                            ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
+                            : "hover:bg-[#3c4043] text-white"
+                        }`}
+                      >
+                        <span className="truncate">{s.label}</span>
+                        {selectedSpeakerId === s.deviceId && (
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {/* 2. Split Camera Pill */}
+          {/* 2. Split Camera Selector Pill */}
           <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
             <button
               type="button"
-              onClick={handleToggleCamera}
-              title="Opções de câmera (Alt+V)"
+              onClick={() => {
+                refreshMediaDevices();
+                setOpenDeviceMenu((m) => (m === "camera" ? null : "camera"));
+              }}
+              title="Selecionar câmera"
               aria-label="Opções de câmera"
               className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
             >
@@ -2373,7 +3419,7 @@ export function MeetingRoomView({
               }
               className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 isCameraOff
-                  ? "bg-[#3c4043] text-white hover:bg-[#4e5256]"
+                  ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
                   : "bg-[#0b57d0] text-white"
               }`}
             >
@@ -2383,10 +3429,36 @@ export function MeetingRoomView({
                 <Video className="w-4 h-4" />
               )}
             </button>
-            {isCameraOff && (
-              <span className="absolute -top-1 -right-0.5 w-4 h-4 rounded-full bg-[#fbbc04] text-[#1f1f1f] text-[10px] font-bold flex items-center justify-center">
-                !
-              </span>
+
+            {openDeviceMenu === "camera" && (
+              <div className="absolute bottom-14 left-0 w-72 bg-[#282a2c] border border-[#3c4043] rounded-2xl p-3 shadow-2xl z-50 text-xs space-y-1.5">
+                <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                  Câmeras conectadas ({videoInputs.length || 1})
+                </div>
+                {videoInputs.length === 0 ? (
+                  <div className="px-2 py-1.5 text-[#c4c7c5]">
+                    Ative a câmera para listar dispositivos
+                  </div>
+                ) : (
+                  videoInputs.map((c) => (
+                    <button
+                      key={c.deviceId}
+                      type="button"
+                      onClick={() => handleSelectCameraDevice(c.deviceId)}
+                      className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
+                        selectedCamId === c.deviceId
+                          ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
+                          : "hover:bg-[#3c4043] text-white"
+                      }`}
+                    >
+                      <span className="truncate">{c.label}</span>
+                      {selectedCamId === c.deviceId && (
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
             )}
           </div>
 
@@ -2521,6 +3593,18 @@ export function MeetingRoomView({
 
             {showMoreMenu && (
               <div className="absolute bottom-14 right-0 w-72 bg-[#282a2c] border border-[#3c4043] rounded-2xl py-2 shadow-2xl z-40 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    unlockAndNudgeRemoteAudio();
+                    showToast("Áudio da chamada sincronizado");
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4 text-[#81c995]" />
+                  <span>Sincronizar áudio da sala</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {

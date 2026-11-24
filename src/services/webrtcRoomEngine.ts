@@ -51,11 +51,22 @@ export type RoomSignalPayload =
   | {
       type: "ROSTER_SYNC";
       participants: Array<Omit<RoomParticipant, "stream" | "isLocal">>;
+      roomLocked?: boolean;
     }
   | {
       type: "PEER_STATE_UPDATE";
       participantId: string;
       patch: Partial<Omit<RoomParticipant, "stream" | "isLocal">>;
+    }
+  | {
+      type: "MEDIA_SYNC";
+      participantId: string;
+      hasAudio: boolean;
+      hasVideo: boolean;
+    }
+  | {
+      type: "ROOM_LOCK_STATE";
+      locked: boolean;
     }
   | { type: "PEER_LEAVE"; participantId: string }
   | { type: "CHAT_MESSAGE"; message: RoomChatMessage }
@@ -83,6 +94,26 @@ const AVATAR_COLORS = [
   "#0369a1",
 ];
 
+/**
+ * Multi-STUN + Public Free TURN Relay configuration so WebRTC RTP audio & video
+ * traverse Home Wi-Fi, Ethernet, Corporate Firewalls, and Mobile 4G/5G CGNAT reliably.
+ */
+const RTC_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp",
+    ],
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
+
 export function pickAvatarColor(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -93,23 +124,23 @@ export function pickAvatarColor(seed: string): string {
 
 function getDeterministicHostPeerId(roomCode: string): string {
   const clean = roomCode.trim().toLowerCase().replace(/[^a-z0-9]/g, "-");
-  return `freeting-v2-host-${clean}`;
+  return `freeting-v3-host-${clean}`;
 }
 
 function getGuestPeerId(roomCode: string, localId: string): string {
   const cleanRoom = roomCode.trim().toLowerCase().replace(/[^a-z0-9]/g, "-");
   const cleanLocal = localId.replace(/[^a-z0-9]/gi, "");
-  return `freeting-v2-guest-${cleanRoom}-${cleanLocal}`;
+  return `freeting-v3-guest-${cleanRoom}-${cleanLocal}`;
 }
 
 /**
- * Dual-Transport Multi-Peer WebRTC Engine:
- * 1. PeerJS Cloud Signaling + WebRTC DataChannel/MediaConnection:
- *    Allows participants across different browsers, incognito windows, different computers,
- *    or mobile phones to join the same room code, discover the Host and all peers,
- *    chat in real time, and stream live video & audio.
- * 2. BroadcastChannel + Local RTCPeerConnection:
- *    Provides instant 0ms fallback for multiple tabs within the same browser.
+ * Dual-Transport Multi-Peer WebRTC Engine (Desktop <-> Mobile Hardened):
+ * 1. Maintains a unified persistent 2-track [audio, video] outbound stream so initial
+ *    SDP offers/answers ALWAYS negotiate sendrecv audio + video transceivers.
+ * 2. Uses transceiver-indexed RTCRtpSender.replaceTrack() for <20ms glitch-free
+ *    microphone unmute/mute, camera toggle, mobile front/rear camera flip, and screen share.
+ * 3. Prevents PeerJS MediaConnection glare (deterministic single caller per pair)
+ *    and automatically recovers stalled/failed ICE connections across Wi-Fi & 4G/5G.
  */
 export class FreetingWebRtcRoomEngine {
   private roomCode: string;
@@ -120,20 +151,25 @@ export class FreetingWebRtcRoomEngine {
     string,
     Omit<RoomParticipant, "stream" | "isLocal">
   >();
+  private roomLocked = false;
 
   // Transport 1: BroadcastChannel (Same-browser tabs)
   private channel: BroadcastChannel | null = null;
   private localPeerConnections = new Map<string, RTCPeerConnection>();
 
-  // Transport 2: PeerJS (Cross-browser, Incognito, Cross-Device / Internet)
+  // Transport 2: PeerJS (Cross-browser, Desktop <-> Mobile, Wi-Fi <-> 4G/5G)
   private peerInstance: Peer | null = null;
   private dataConnections = new Map<string, DataConnection>();
   private mediaConnections = new Map<string, MediaConnection>();
   private reconnectTimer: ReturnType<typeof setInterval> | null = null;
   private isActingHost = false;
 
+  // Media Tracks & Persistent Fallback Generators (never GC'd during call)
   private localStream: MediaStream | null = null;
-  private dummyStream: MediaStream | null = null;
+  private dummyAudioCtx: AudioContext | null = null;
+  private dummyAudioOsc: OscillatorNode | null = null;
+  private dummyAudioTrack: MediaStreamTrack | null = null;
+  private dummyVideoTrack: MediaStreamTrack | null = null;
   private isDisconnecting = false;
 
   private onSignalCallback: (payload: RoomSignalPayload) => void;
@@ -155,55 +191,109 @@ export class FreetingWebRtcRoomEngine {
   }
 
   /**
-   * Creates a lightweight 1x1 black canvas video track + silent Web Audio track
-   * so both audio and video transceivers are pre-negotiated on initial WebRTC handshake.
+   * Ensures we always have both a fallback silent audio track and a 2x2 black canvas video track
+   * so every WebRTC PeerConnection negotiates BOTH m=audio and m=video transceivers upfront.
    */
-  private getOrCreateFallbackStream(): MediaStream | null {
-    if (
-      this.localStream &&
-      this.localStream.getVideoTracks().length > 0 &&
-      this.localStream.getAudioTracks().length > 0
-    ) {
-      return this.localStream;
-    }
-    if (this.dummyStream) {
-      const combined = new MediaStream();
-      const realVideo = this.localStream?.getVideoTracks()[0];
-      const realAudio = this.localStream?.getAudioTracks()[0];
-      const dummyVideo = this.dummyStream.getVideoTracks()[0];
-      const dummyAudio = this.dummyStream.getAudioTracks()[0];
-      if (realVideo || dummyVideo) combined.addTrack(realVideo || dummyVideo);
-      if (realAudio || dummyAudio) combined.addTrack(realAudio || dummyAudio);
-      return combined;
-    }
-    if (typeof document === "undefined") return null;
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 2;
-      canvas.height = 2;
-      const ctx = canvas.getContext("2d");
-      ctx?.fillRect(0, 0, 2, 2);
-      const stream = canvas.captureStream(1);
+  private ensureFallbackTracks(): void {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
 
-      if (typeof window !== "undefined" && "AudioContext" in window) {
-        try {
-          const audioCtx = new window.AudioContext();
-          const dest = audioCtx.createMediaStreamDestination();
-          const silentTrack = dest.stream.getAudioTracks()[0];
-          if (silentTrack) {
-            silentTrack.enabled = false;
-            stream.addTrack(silentTrack);
-          }
-        } catch {
-          // ignore
+    if (!this.dummyVideoTrack || this.dummyVideoTrack.readyState === "ended") {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 4;
+        canvas.height = 4;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#131314";
+          ctx.fillRect(0, 0, 4, 4);
         }
+        const vStream = canvas.captureStream(1);
+        const vTrack = vStream.getVideoTracks()[0] || null;
+        if (vTrack) {
+          vTrack.enabled = false;
+          this.dummyVideoTrack = vTrack;
+        }
+      } catch {
+        // ignore
       }
-
-      this.dummyStream = stream;
-      return this.getOrCreateFallbackStream();
-    } catch {
-      return this.localStream;
     }
+
+    if (!this.dummyAudioTrack || this.dummyAudioTrack.readyState === "ended") {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          gain.gain.value = 0; // 100% digital silence
+          const dest = ctx.createMediaStreamDestination();
+          osc.connect(gain);
+          gain.connect(dest);
+          osc.start();
+
+          const aTrack = dest.stream.getAudioTracks()[0] || null;
+          if (aTrack) {
+            aTrack.enabled = false;
+            this.dummyAudioCtx = ctx;
+            this.dummyAudioOsc = osc;
+            this.dummyAudioTrack = aTrack;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private getActiveAudioTrack(): MediaStreamTrack | null {
+    const liveRealAudio = this.localStream
+      ?.getAudioTracks()
+      .find((t) => t.readyState === "live");
+    if (liveRealAudio) return liveRealAudio;
+    this.ensureFallbackTracks();
+    return this.dummyAudioTrack;
+  }
+
+  private getActiveVideoTrack(): MediaStreamTrack | null {
+    const liveRealVideo = this.localStream
+      ?.getVideoTracks()
+      .find((t) => t.readyState === "live");
+    if (liveRealVideo) return liveRealVideo;
+    this.ensureFallbackTracks();
+    return this.dummyVideoTrack;
+  }
+
+  /**
+   * Builds a fresh MediaStream containing BOTH [activeAudioTrack, activeVideoTrack]
+   * so SDP Offer/Answer m-lines are 100% symmetric between Desktop and Mobile.
+   */
+  private buildUnifiedOutboundStream(): MediaStream {
+    const composite = new MediaStream();
+    const audioTrack = this.getActiveAudioTrack();
+    const videoTrack = this.getActiveVideoTrack();
+    if (audioTrack) composite.addTrack(audioTrack);
+    if (videoTrack) composite.addTrack(videoTrack);
+    return composite;
+  }
+
+  /**
+   * Deterministic rule to avoid glare (two peers calling each other simultaneously):
+   * - Between Host and Guest: Guest ALWAYS initiates the PeerJS MediaConnection to Host; Host answers.
+   * - Between two Guests in a 3+ mesh: Guest with lexicographically smaller peerJsId initiates.
+   */
+  private shouldInitiatePeerJsMediaCall(remotePeerJsId: string): boolean {
+    if (!this.peerInstance) return false;
+    const hostPeerId = getDeterministicHostPeerId(this.roomCode);
+    if (this.isActingHost) {
+      return false;
+    }
+    if (remotePeerJsId === hostPeerId) {
+      return true;
+    }
+    return this.peerInstance.id < remotePeerJsId;
   }
 
   public connect(
@@ -216,6 +306,7 @@ export class FreetingWebRtcRoomEngine {
     this.localStream = stream;
     this.knownRoster.set(this.localId, this.localParticipantMeta);
 
+    this.ensureFallbackTracks();
     this.initBroadcastChannel();
     this.initPeerJsNetwork(preferHostRole);
   }
@@ -250,18 +341,13 @@ export class FreetingWebRtcRoomEngine {
 
       const hostPeerId = getDeterministicHostPeerId(this.roomCode);
       const guestPeerId = getGuestPeerId(this.roomCode, this.localId);
-
-      // Try claiming the Host slot first if preferHostRole is true;
-      // if already taken by the room creator, automatically fall back to Guest slot!
       const initialCandidateId = preferHostRole ? hostPeerId : guestPeerId;
 
       const peer = new PeerClass(initialCandidateId, {
         debug: 0,
         config: {
-          iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:global.stun.twilio.com:3478" },
-          ],
+          iceServers: RTC_ICE_SERVERS,
+          iceCandidatePoolSize: 4,
         },
       });
 
@@ -286,21 +372,44 @@ export class FreetingWebRtcRoomEngine {
           this.onRoleResolvedCallback?.(resolvedRole);
         }
 
-        // If we are a Guest, connect immediately to the Host Peer ID and maintain auto-reconnect heartbeat!
         if (!this.isActingHost) {
           this.connectToRemotePeerJs(hostPeerId);
-          if (this.reconnectTimer) clearInterval(this.reconnectTimer);
-          this.reconnectTimer = setInterval(() => {
-            if (
-              !this.isDisconnecting &&
-              !this.isActingHost &&
-              this.peerInstance &&
-              !this.dataConnections.has(hostPeerId)
-            ) {
-              this.connectToRemotePeerJs(hostPeerId);
-            }
-          }, 3500);
         }
+
+        // Periodic health & auto-reconnect heartbeat (every 3s) for cross-network stability
+        if (this.reconnectTimer) clearInterval(this.reconnectTimer);
+        this.reconnectTimer = setInterval(() => {
+          if (this.isDisconnecting || !this.peerInstance) return;
+
+          if (!this.isActingHost && !this.dataConnections.has(hostPeerId)) {
+            this.connectToRemotePeerJs(hostPeerId);
+          }
+
+          // Ensure every open DataConnection also has a healthy MediaConnection
+          this.dataConnections.forEach((conn, remotePeerJsId) => {
+            if (!conn.open) return;
+            const existingCall = this.mediaConnections.get(remotePeerJsId);
+            const iceState = existingCall?.peerConnection?.iceConnectionState;
+            const isBroken =
+              iceState === "failed" ||
+              iceState === "closed" ||
+              (!existingCall && this.shouldInitiatePeerJsMediaCall(remotePeerJsId));
+
+            if (isBroken) {
+              if (existingCall) {
+                try {
+                  existingCall.close();
+                } catch {
+                  // ignore
+                }
+                this.mediaConnections.delete(remotePeerJsId);
+              }
+              if (this.shouldInitiatePeerJsMediaCall(remotePeerJsId)) {
+                this.initiatePeerJsMediaCall(remotePeerJsId);
+              }
+            }
+          });
+        }, 3000);
       });
 
       peer.on("connection", (conn: DataConnection) => {
@@ -308,18 +417,18 @@ export class FreetingWebRtcRoomEngine {
       });
 
       peer.on("call", (call: MediaConnection) => {
-        const answerStream = this.getOrCreateFallbackStream();
-        if (answerStream) {
-          call.answer(answerStream);
-        } else {
-          call.answer();
+        if (this.isDisconnecting) {
+          call.close();
+          return;
         }
+        const answerStream = this.buildUnifiedOutboundStream();
+        call.answer(answerStream);
         this.setupMediaConnection(call);
+        // Sync real tracks immediately after answer in case tracks were toggled right as call arrived
+        setTimeout(() => this.syncTracksOnPeerConnection(call.peerConnection), 150);
       });
 
       peer.on("error", (err: { type?: string }) => {
-        // If hostPeerId is already taken, someone else is the Host of this room!
-        // Reconnect immediately as a Guest participant!
         if (err && err.type === "unavailable-id" && preferHostRole) {
           try {
             peer.destroy();
@@ -328,6 +437,16 @@ export class FreetingWebRtcRoomEngine {
           }
           if (!this.isDisconnecting) {
             this.initPeerJsNetwork(false);
+          }
+        }
+      });
+
+      peer.on("disconnected", () => {
+        if (!this.isDisconnecting && !peer.destroyed) {
+          try {
+            peer.reconnect();
+          } catch {
+            // ignore
           }
         }
       });
@@ -351,18 +470,45 @@ export class FreetingWebRtcRoomEngine {
         reliable: true,
       });
       this.setupDataConnection(conn);
-
-      const streamToCall = this.getOrCreateFallbackStream();
-      if (streamToCall) {
-        const call = this.peerInstance.call(remotePeerJsId, streamToCall, {
-          metadata: { senderId: this.localId },
-        });
-        if (call) {
-          this.setupMediaConnection(call);
-        }
-      }
     } catch {
       // ignore connection error
+    }
+  }
+
+  private initiatePeerJsMediaCall(remotePeerJsId: string): void {
+    if (
+      !this.peerInstance ||
+      this.isDisconnecting ||
+      remotePeerJsId === this.peerInstance.id
+    ) {
+      return;
+    }
+
+    const existing = this.mediaConnections.get(remotePeerJsId);
+    if (existing) {
+      const state = existing.peerConnection?.iceConnectionState;
+      if (state && state !== "failed" && state !== "closed") {
+        this.syncTracksOnPeerConnection(existing.peerConnection);
+        return;
+      }
+      try {
+        existing.close();
+      } catch {
+        // ignore
+      }
+      this.mediaConnections.delete(remotePeerJsId);
+    }
+
+    try {
+      const outbound = this.buildUnifiedOutboundStream();
+      const call = this.peerInstance.call(remotePeerJsId, outbound, {
+        metadata: { senderId: this.localId },
+      });
+      if (call) {
+        this.setupMediaConnection(call);
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -382,12 +528,17 @@ export class FreetingWebRtcRoomEngine {
         } satisfies RoomSignalPayload);
       }
 
-      // If we are the Host, send the full room roster to the newly connected participant
       if (this.isActingHost) {
         conn.send({
           type: "ROSTER_SYNC",
           participants: Array.from(this.knownRoster.values()),
+          roomLocked: this.roomLocked,
         } satisfies RoomSignalPayload);
+      }
+
+      // Initiate MediaConnection AFTER DataConnection is open so PEER_ANNOUNCE arrives first!
+      if (this.shouldInitiatePeerJsMediaCall(conn.peer)) {
+        this.initiatePeerJsMediaCall(conn.peer);
       }
     });
 
@@ -399,7 +550,15 @@ export class FreetingWebRtcRoomEngine {
 
     conn.on("close", () => {
       this.dataConnections.delete(conn.peer);
-      // Find participant with this peerJsId and notify leave
+      const mediaCall = this.mediaConnections.get(conn.peer);
+      if (mediaCall) {
+        try {
+          mediaCall.close();
+        } catch {
+          // ignore
+        }
+        this.mediaConnections.delete(conn.peer);
+      }
       for (const [pid, meta] of this.knownRoster.entries()) {
         if (meta.peerJsId === conn.peer && pid !== this.localId) {
           this.knownRoster.delete(pid);
@@ -412,40 +571,144 @@ export class FreetingWebRtcRoomEngine {
     });
   }
 
+  private resolveParticipantIdByPeerJsId(
+    remotePeerJsId: string,
+    metadataSenderId?: unknown
+  ): string | null {
+    for (const [pid, meta] of this.knownRoster.entries()) {
+      if (meta.peerJsId === remotePeerJsId) {
+        return pid;
+      }
+    }
+    if (typeof metadataSenderId === "string" && metadataSenderId) {
+      return metadataSenderId;
+    }
+    return null;
+  }
+
   private setupMediaConnection(call: MediaConnection): void {
+    const previous = this.mediaConnections.get(call.peer);
+    if (previous && previous !== call) {
+      try {
+        previous.close();
+      } catch {
+        // ignore
+      }
+    }
     this.mediaConnections.set(call.peer, call);
+
+    const pc = call.peerConnection;
+    if (pc) {
+      pc.oniceconnectionstatechange = () => {
+        if (this.isDisconnecting) return;
+        if (pc.iceConnectionState === "failed") {
+          try {
+            pc.restartIce?.();
+          } catch {
+            // ignore
+          }
+        }
+      };
+    }
 
     call.on("stream", (remoteStream: MediaStream) => {
       if (this.isDisconnecting) return;
-      // Match remotePeerJsId to participantId
-      let matchedParticipantId: string | null = null;
-      for (const [pid, meta] of this.knownRoster.entries()) {
-        if (meta.peerJsId === call.peer) {
-          matchedParticipantId = pid;
-          break;
-        }
-      }
-      if (!matchedParticipantId && call.metadata?.senderId) {
-        matchedParticipantId = String(call.metadata.senderId);
-      }
-      if (matchedParticipantId) {
-        this.onRemoteStreamCallback(matchedParticipantId, remoteStream);
+      const matchedId = this.resolveParticipantIdByPeerJsId(
+        call.peer,
+        call.metadata?.senderId
+      );
+      if (matchedId) {
+        this.onRemoteStreamCallback(matchedId, remoteStream);
       } else {
-        // Retry matching once PEER_ANNOUNCE arrives
-        setTimeout(() => {
-          for (const [pid, meta] of this.knownRoster.entries()) {
-            if (meta.peerJsId === call.peer) {
-              this.onRemoteStreamCallback(pid, remoteStream);
-              break;
+        // Retry matching if stream arrived a few ms before PEER_ANNOUNCE
+        let attempts = 0;
+        const retryTimer = setInterval(() => {
+          attempts++;
+          const resolved = this.resolveParticipantIdByPeerJsId(
+            call.peer,
+            call.metadata?.senderId
+          );
+          if (resolved || attempts >= 10 || this.isDisconnecting) {
+            clearInterval(retryTimer);
+            if (resolved && !this.isDisconnecting) {
+              this.onRemoteStreamCallback(resolved, remoteStream);
             }
           }
-        }, 600);
+        }, 250);
       }
     });
 
     call.on("close", () => {
-      this.mediaConnections.delete(call.peer);
+      if (this.mediaConnections.get(call.peer) === call) {
+        this.mediaConnections.delete(call.peer);
+      }
     });
+  }
+
+  /**
+   * Uses RTCRtpTransceivers (falling back to getSenders) so even if a track previously
+   * ended or was null, we ALWAYS replace the exact audio & video sender tracks cleanly.
+   */
+  private syncTracksOnPeerConnection(
+    pc: RTCPeerConnection | null | undefined
+  ): boolean {
+    if (!pc || pc.signalingState === "closed") return false;
+
+    const targetAudio = this.getActiveAudioTrack();
+    const targetVideo = this.getActiveVideoTrack();
+    let needsRenegotiation = false;
+
+    const replaceForKind = (
+      kind: "audio" | "video",
+      nextTrack: MediaStreamTrack | null
+    ) => {
+      if (!nextTrack) return;
+
+      let sender: RTCRtpSender | undefined;
+      if (typeof pc.getTransceivers === "function") {
+        const transceiver = pc
+          .getTransceivers()
+          .find(
+            (t) =>
+              t.receiver?.track?.kind === kind || t.sender?.track?.kind === kind
+          );
+        if (transceiver) {
+          sender = transceiver.sender;
+          if (
+            transceiver.direction === "recvonly" ||
+            transceiver.direction === "inactive"
+          ) {
+            try {
+              transceiver.direction = "sendrecv";
+              needsRenegotiation = true;
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+
+      if (!sender) {
+        sender = pc.getSenders().find((s) => s.track?.kind === kind);
+      }
+
+      if (sender) {
+        if (sender.track !== nextTrack) {
+          sender.replaceTrack(nextTrack).catch(() => {});
+        }
+      } else {
+        try {
+          pc.addTrack(nextTrack, this.buildUnifiedOutboundStream());
+          needsRenegotiation = true;
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    replaceForKind("audio", targetAudio);
+    replaceForKind("video", targetVideo);
+    return needsRenegotiation;
   }
 
   private async handleIncomingSignal(
@@ -456,7 +719,6 @@ export class FreetingWebRtcRoomEngine {
     if (data.type === "PEER_ANNOUNCE") {
       if (data.participant.id === this.localId) return;
 
-      // If someone already in the room is HOST, ensure we don't have two hosts
       if (
         data.participant.role === "HOST" &&
         this.localParticipantMeta &&
@@ -483,41 +745,42 @@ export class FreetingWebRtcRoomEngine {
             isReply: true,
           });
         }
-        await this.initiateLocalRtcPeerConnection(
-          data.participant.id,
-          !data.isReply
-        );
+        // Only engage local BroadcastChannel RTCPeerConnection if we don't already have a PeerJS call to this peer
+        const peerJsAlreadyConnected =
+          !!data.participant.peerJsId &&
+          this.mediaConnections.has(data.participant.peerJsId);
+        if (!peerJsAlreadyConnected) {
+          await this.initiateLocalRtcPeerConnection(
+            data.participant.id,
+            !data.isReply
+          );
+        }
       } else if (source === "peerjs") {
-        // If we are Host, relay the updated roster to all connected PeerJS guests
         if (this.isActingHost) {
           this.sendToAllPeerJs({
             type: "ROSTER_SYNC",
             participants: Array.from(this.knownRoster.values()),
+            roomLocked: this.roomLocked,
           });
         }
-        // Ensure we have an active media call if we have a real stream
         if (
           data.participant.peerJsId &&
-          this.localStream &&
-          this.peerInstance &&
-          !this.mediaConnections.has(data.participant.peerJsId)
+          this.shouldInitiatePeerJsMediaCall(data.participant.peerJsId)
         ) {
-          try {
-            const call = this.peerInstance.call(
-              data.participant.peerJsId,
-              this.localStream,
-              { metadata: { senderId: this.localId } }
-            );
-            if (call) this.setupMediaConnection(call);
-          } catch {
-            // ignore
-          }
+          this.initiatePeerJsMediaCall(data.participant.peerJsId);
         }
       }
       return;
     }
 
     if (data.type === "ROSTER_SYNC") {
+      if (typeof data.roomLocked === "boolean") {
+        this.roomLocked = data.roomLocked;
+        this.onSignalCallback({
+          type: "ROOM_LOCK_STATE",
+          locked: data.roomLocked,
+        });
+      }
       for (const peerMeta of data.participants) {
         if (peerMeta.id !== this.localId) {
           this.knownRoster.set(peerMeta.id, peerMeta);
@@ -526,7 +789,6 @@ export class FreetingWebRtcRoomEngine {
             participant: peerMeta,
             isReply: true,
           });
-          // Connect directly to other guests in the mesh if not connected yet
           if (peerMeta.peerJsId) {
             this.connectToRemotePeerJs(peerMeta.peerJsId);
           }
@@ -553,16 +815,22 @@ export class FreetingWebRtcRoomEngine {
           ...data.patch,
         });
       }
+    } else if (data.type === "ROOM_LOCK_STATE") {
+      this.roomLocked = data.locked;
     } else if (data.type === "PEER_LEAVE") {
       this.knownRoster.delete(data.participantId);
     }
 
-    // If we are the PeerJS Host and received a message from one Guest, relay it to all other Guests
     if (source === "peerjs" && this.isActingHost) {
       this.sendToAllPeerJs(data, fromPeerJsId);
     }
 
     this.onSignalCallback(data);
+  }
+
+  public setRoomLocked(locked: boolean): void {
+    this.roomLocked = locked;
+    this.broadcast({ type: "ROOM_LOCK_STATE", locked });
   }
 
   public updateLocalParticipantMeta(
@@ -579,27 +847,20 @@ export class FreetingWebRtcRoomEngine {
     });
   }
 
+  /**
+   * Synchronizes updated local audio/video/screen tracks across ALL active connections
+   * seamlessly using replaceTrack() without dropping existing calls or causing SDP glare.
+   */
   public updateLocalStream(stream: MediaStream | null): void {
     this.localStream = stream;
-    if (!stream) return;
 
-    // 1. Update local BroadcastChannel RTCPeerConnections (with SDP renegotiation if track added)
+    if (this.dummyAudioCtx && this.dummyAudioCtx.state === "suspended") {
+      this.dummyAudioCtx.resume().catch(() => {});
+    }
+
+    // 1. Update local BroadcastChannel RTCPeerConnections
     this.localPeerConnections.forEach((pc, remotePeerId) => {
-      const senders = pc.getSenders();
-      let needsRenegotiation = false;
-      stream.getTracks().forEach((track) => {
-        const existing = senders.find((s) => s.track?.kind === track.kind);
-        if (existing) {
-          existing.replaceTrack(track).catch(() => {});
-        } else {
-          try {
-            pc.addTrack(track, stream);
-            needsRenegotiation = true;
-          } catch {
-            // ignore
-          }
-        }
-      });
+      const needsRenegotiation = this.syncTracksOnPeerConnection(pc);
       if (needsRenegotiation) {
         pc.createOffer()
           .then((offer) => pc.setLocalDescription(offer).then(() => offer))
@@ -615,41 +876,35 @@ export class FreetingWebRtcRoomEngine {
       }
     });
 
-    // 2. Update or initiate PeerJS MediaConnections for all connected remote peers
+    // 2. Update PeerJS MediaConnections via transceiver replaceTrack()
     this.mediaConnections.forEach((call) => {
-      const pc = call.peerConnection;
-      if (pc) {
-        const senders = pc.getSenders();
-        stream.getTracks().forEach((track) => {
-          const existing = senders.find((s) => s.track?.kind === track.kind);
-          if (existing) {
-            existing.replaceTrack(track).catch(() => {});
-          } else {
-            try {
-              pc.addTrack(track, stream);
-            } catch {
-              // ignore
-            }
-          }
-        });
+      this.syncTracksOnPeerConnection(call.peerConnection);
+    });
+
+    // 3. If any open PeerJS DataConnection lacks a MediaConnection (and we are initiator), establish it
+    this.dataConnections.forEach((conn, remotePeerJsId) => {
+      if (
+        conn.open &&
+        !this.mediaConnections.has(remotePeerJsId) &&
+        this.shouldInitiatePeerJsMediaCall(remotePeerJsId)
+      ) {
+        this.initiatePeerJsMediaCall(remotePeerJsId);
       }
     });
 
-    // Also initiate new PeerJS media call to every connected DataConnection peer so new video/audio tracks arrive reliably
-    if (this.peerInstance) {
-      this.dataConnections.forEach((_conn, remotePeerJsId) => {
-        try {
-          const call = this.peerInstance!.call(remotePeerJsId, stream, {
-            metadata: { senderId: this.localId },
-          });
-          if (call) {
-            this.setupMediaConnection(call);
-          }
-        } catch {
-          // ignore
-        }
-      });
-    }
+    const hasRealAudio = !!stream
+      ?.getAudioTracks()
+      .some((t) => t.readyState === "live" && t.enabled);
+    const hasRealVideo = !!stream
+      ?.getVideoTracks()
+      .some((t) => t.readyState === "live" && t.enabled);
+
+    this.broadcast({
+      type: "MEDIA_SYNC",
+      participantId: this.localId,
+      hasAudio: hasRealAudio,
+      hasVideo: hasRealVideo,
+    });
   }
 
   private async initiateLocalRtcPeerConnection(
@@ -660,20 +915,20 @@ export class FreetingWebRtcRoomEngine {
       return null;
     }
     if (this.localPeerConnections.has(remotePeerId)) {
-      return this.localPeerConnections.get(remotePeerId)!;
+      const existingPc = this.localPeerConnections.get(remotePeerId)!;
+      this.syncTracksOnPeerConnection(existingPc);
+      return existingPc;
     }
 
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: RTC_ICE_SERVERS,
     });
     this.localPeerConnections.set(remotePeerId, pc);
 
-    const activeStream = this.getOrCreateFallbackStream();
-    if (activeStream) {
-      activeStream.getTracks().forEach((track) => {
-        pc.addTrack(track, activeStream);
-      });
-    }
+    const activeStream = this.buildUnifiedOutboundStream();
+    activeStream.getTracks().forEach((track) => {
+      pc.addTrack(track, activeStream);
+    });
 
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
@@ -689,6 +944,9 @@ export class FreetingWebRtcRoomEngine {
     pc.ontrack = (ev) => {
       if (ev.streams && ev.streams[0]) {
         this.onRemoteStreamCallback(remotePeerId, ev.streams[0]);
+      } else {
+        const fallback = new MediaStream([ev.track]);
+        this.onRemoteStreamCallback(remotePeerId, fallback);
       }
     };
 
@@ -827,9 +1085,25 @@ export class FreetingWebRtcRoomEngine {
       this.peerInstance = null;
     }
 
-    if (this.dummyStream) {
-      this.dummyStream.getTracks().forEach((t) => t.stop());
-      this.dummyStream = null;
+    if (this.dummyAudioOsc) {
+      try {
+        this.dummyAudioOsc.stop();
+      } catch {
+        // ignore
+      }
+      this.dummyAudioOsc = null;
+    }
+    if (this.dummyAudioTrack) {
+      this.dummyAudioTrack.stop();
+      this.dummyAudioTrack = null;
+    }
+    if (this.dummyAudioCtx) {
+      this.dummyAudioCtx.close().catch(() => {});
+      this.dummyAudioCtx = null;
+    }
+    if (this.dummyVideoTrack) {
+      this.dummyVideoTrack.stop();
+      this.dummyVideoTrack = null;
     }
   }
 }
