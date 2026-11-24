@@ -80,10 +80,17 @@ export function FreetingHomeDashboard() {
 
   // UI/UX Theme & Accessibility State
   const [theme, setTheme] = useState<HomeThemeMode>("light");
-  const [fontScale, setFontScale] = useState<100 | 110 | 120>(100);
+  const [fontScale, setFontScale] = useState<100 | 115 | 130>(100);
   const [a11yAnnouncement, setA11yAnnouncement] = useState(
     "Painel inicial do FREETING carregado."
   );
+
+  // Apply fontScale directly to root <html> element so all rem and typography scale globally
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.style.fontSize = `${fontScale}%`;
+    }
+  }, [fontScale]);
 
   // Dropdown & Modals
   const [showNewMenu, setShowNewMenu] = useState(false);
@@ -662,11 +669,12 @@ export function FreetingHomeDashboard() {
             type="button"
             onClick={() => {
               const nextScale =
-                fontScale === 100 ? 110 : fontScale === 110 ? 120 : 100;
+                fontScale === 100 ? 115 : fontScale === 115 ? 130 : 100;
               setFontScale(nextScale);
+              announce(`Tamanho das letras alterado para ${nextScale}%`);
             }}
             aria-label="Ajustar tamanho da fonte"
-            title={`Tamanho da fonte (${fontScale}%)`}
+            title={`Aumentar tamanho das letras (${fontScale}%)`}
             className="px-2.5 h-8 rounded-full border border-[#dadce0] dark:border-[#3c4043] text-xs font-bold hover:bg-[#0b57d0]/10 flex items-center gap-1 cursor-pointer"
           >
             <Accessibility className="w-3.5 h-3.5 text-[#0b57d0]" />
@@ -783,7 +791,7 @@ export function FreetingHomeDashboard() {
               {/* Date Strip Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                 <div className="flex items-center gap-2.5">
-                  <h1 className="text-[22px] font-normal">
+                  <h1 className="text-[1.375rem] font-normal">
                     {formatPortugueseDateHeader(selectedDate)}
                   </h1>
                   <button
@@ -869,7 +877,7 @@ export function FreetingHomeDashboard() {
                   <div className="w-8 h-8 rounded-full bg-[#1a73e8] text-white flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
-                  <div className="text-xs sm:text-[13px] leading-snug">
+                  <div className="text-xs sm:text-[0.8125rem] leading-snug">
                     <div className="font-semibold">Sua reunião está segura</div>
                     <div className="opacity-80">
                       As pessoas só podem participar de uma reunião se o
@@ -890,7 +898,7 @@ export function FreetingHomeDashboard() {
               {todaysMeetings.length === 0 ? (
                 <div className="text-center pt-4 pb-10">
                   <FreetingEmptyIllustration />
-                  <h2 className="text-[22px] font-normal mt-4">
+                  <h2 className="text-[1.375rem] font-normal mt-4">
                     Nenhuma reunião agendada para hoje
                   </h2>
                   <p className="text-sm opacity-75 mt-1.5 mb-6">
