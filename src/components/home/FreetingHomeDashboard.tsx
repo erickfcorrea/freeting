@@ -68,6 +68,7 @@ export type HomeThemeMode = "light" | "dark" | "high-contrast";
 
 export function FreetingHomeDashboard() {
   const [activeRoomCode, setActiveRoomCode] = useState<string | null>(null);
+  const [isRoomCreator, setIsRoomCreator] = useState<boolean>(false);
 
   const [selectedDate, setSelectedDate] = useState<Date>(
     () => new Date(2026, 10, 23, 12, 0, 0)
@@ -129,6 +130,7 @@ export function FreetingHomeDashboard() {
       if (queryRoom) {
         const parsed = extractRoomCode(queryRoom);
         if (parsed) {
+          setIsRoomCreator(false);
           setActiveRoomCode(parsed);
           return;
         }
@@ -138,6 +140,7 @@ export function FreetingHomeDashboard() {
         if (pathParts[1]) {
           const parsed = extractRoomCode(pathParts[1]);
           if (parsed) {
+            setIsRoomCreator(false);
             setActiveRoomCode(parsed);
             return;
           }
@@ -151,7 +154,7 @@ export function FreetingHomeDashboard() {
     return () => window.removeEventListener("popstate", syncRoomFromUrl);
   }, []);
 
-  const enterRoom = useCallback((rawCode?: string) => {
+  const enterRoom = useCallback((rawCode?: string, asCreator = false) => {
     const code = rawCode
       ? extractRoomCode(rawCode) || rawCode
       : generateRoomCode();
@@ -159,12 +162,13 @@ export function FreetingHomeDashboard() {
     setLaterRoomCode(null);
     setShowAiNotesModal(false);
     setJoinError(null);
+    setIsRoomCreator(asCreator);
     if (typeof window !== "undefined") {
       const basePath = window.location.pathname.startsWith("/freeting")
         ? "/freeting/"
         : "/";
       const nextUrl = `${basePath}?room=${encodeURIComponent(code)}`;
-      window.history.pushState({ roomCode: code }, "", nextUrl);
+      window.history.pushState({ roomCode: code, asCreator }, "", nextUrl);
     }
     setActiveRoomCode(code);
   }, []);
@@ -304,7 +308,7 @@ export function FreetingHomeDashboard() {
     if (!joinInput.trim()) {
       const instantCode = generateRoomCode();
       announce(`Iniciando reunião na sala ${instantCode}`);
-      enterRoom(instantCode);
+      enterRoom(instantCode, true);
       return;
     }
     const extracted = extractRoomCode(joinInput);
@@ -316,14 +320,14 @@ export function FreetingHomeDashboard() {
       return;
     }
     setJoinError(null);
-    announce(`Entrando na sala ${extracted}`);
-    enterRoom(extracted);
+    announce(`Preparando para entrar na sala ${extracted}`);
+    enterRoom(extracted, false);
   };
 
   const handleStartInstantMeeting = () => {
     const code = generateRoomCode();
     announce(`Iniciando reunião instantânea ${code}`);
-    enterRoom(code);
+    enterRoom(code, true);
   };
 
   const handleCreateMeetingForLater = () => {
@@ -426,6 +430,7 @@ export function FreetingHomeDashboard() {
     return (
       <MeetingRoomView
         roomCode={activeRoomCode}
+        initialIsCreator={isRoomCreator}
         onLeaveToHome={leaveRoomToHome}
       />
     );

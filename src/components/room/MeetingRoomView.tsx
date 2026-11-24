@@ -32,14 +32,12 @@ import {
   Play,
   Square,
   Download,
-  Infinity as InfinityIcon,
   Clock,
   FileText,
   Edit3,
   Eye,
   Keyboard,
   Contrast,
-  Wifi,
 } from "lucide-react";
 import { formatShareableLink } from "@/domain/roomCode";
 import {
@@ -81,29 +79,26 @@ const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "😂", "😮"];
 const SIMULATED_BOT_PROFILES = [
   {
     name: "Dra. Camila Mendes",
-    greeting:
-      "Olá pessoal! Que ótimo não termos mais o limite de 1 hora de reunião aqui no FREETING.",
+    greeting: "Olá! Já estou conectada na sala, áudio e vídeo funcionando perfeitamente.",
     autoReplies: [
-      "Perfeito! Estou acompanhando a apresentação e as anotações da IA estão super precisas.",
-      "Concordo totalmente. Com a gravação ilimitada em WebM não precisamos correr contra o relógio.",
-      "Excelente ponto! Vou registrar essa definição na nossa pauta.",
+      "Perfeito! Estou acompanhando a apresentação.",
+      "Concordo totalmente com esse ponto.",
+      "Excelente! Vou registrar essa definição na nossa pauta.",
     ],
   },
   {
-    name: "Carlos Eduardo (Tech Lead)",
-    greeting:
-      "Áudio e vídeo super estáveis. Já ativei as anotações na minha aba também!",
+    name: "Carlos Eduardo",
+    greeting: "Oi pessoal! Conectado e ouvindo vocês muito bem.",
     autoReplies: [
-      "A latência P2P está excelente aqui, menos de 15ms.",
-      "Boa! O banco SQLite sincronizou todos os agendamentos da sprint.",
+      "A conexão está ótima aqui.",
+      "Boa! Tudo alinhado do meu lado.",
     ],
   },
   {
-    name: "Marina Costa (Produto)",
-    greeting:
-      "A gravação ilimitada funcionando direto no navegador salvou nossa revisão semanal.",
+    name: "Marina Costa",
+    greeting: "Olá a todos! Pronta para começarmos nossa reunião.",
     autoReplies: [
-      "Sim! E depois podemos baixar a ata em Markdown com um clique.",
+      "Sim! Depois podemos exportar o resumo da reunião.",
       "Tudo certo do meu lado, podemos seguir!",
     ],
   },
@@ -111,16 +106,78 @@ const SIMULATED_BOT_PROFILES = [
 
 export type StageLayoutMode = "auto" | "grid" | "spotlight";
 
+/**
+ * RemoteParticipantMedia:
+ * Binds and plays incoming WebRTC video and audio tracks from remote participants
+ * so real people in different browsers/devices can see and hear each other.
+ */
+function RemoteParticipantMedia({
+  stream,
+  isCameraOff,
+  isMuted,
+}: {
+  stream?: MediaStream | null;
+  isCameraOff: boolean;
+  isMuted: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+    if (audioRef.current && stream) {
+      audioRef.current.srcObject = stream;
+      audioRef.current.play().catch(() => {});
+    }
+  }, [stream, isCameraOff, isMuted]);
+
+  const hasVideoTracks =
+    !!stream &&
+    !isCameraOff &&
+    stream.getVideoTracks().some((t) => t.readyState === "live");
+
+  return (
+    <>
+      {/* Always render remote audio element (unmuted!) so voice plays continuously */}
+      {stream && <audio ref={audioRef} autoPlay playsInline muted={false} />}
+      {hasVideoTracks && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover"
+        />
+      )}
+    </>
+  );
+}
+
 export function MeetingRoomView({
   roomCode,
+  initialIsCreator = false,
   onLeaveToHome,
 }: {
   roomCode: string;
+  initialIsCreator?: boolean;
   onLeaveToHome?: () => void;
 }) {
   const router = useRouter();
 
-  // Clock & Unlimited Elapsed Duration
+  // If the user opened a shared link or typed a code (initialIsCreator = false),
+  // show the Pre-Join Lobby ("Pronto para participar?") first just like Google Meet!
+  const [inPreJoinLobby, setInPreJoinLobby] = useState<boolean>(
+    !initialIsCreator
+  );
+  const [displayName, setDisplayName] = useState<string>(() =>
+    initialIsCreator ? "Organizador" : ""
+  );
+  const [isCreatorRole, setIsCreatorRole] =
+    useState<boolean>(initialIsCreator);
+
+  // Clock & Elapsed Duration
   const [clockText, setClockText] = useState("18:32");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -142,12 +199,14 @@ export function MeetingRoomView({
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [a11yLiveText, setA11yLiveText] = useState(
-    `Conectado à sala ${roomCode} sem limite de 1 hora.`
+    `Conectado à sala ${roomCode}.`
   );
 
-  // Overlays & Cards
-  const [showReadyCard, setShowReadyCard] = useState(true);
-  const [showPtToastCard, setShowPtToastCard] = useState(true);
+  // Overlays & Cards: ONLY the Creator sees "Sua reunião está pronta" automatically!
+  const [showReadyCard, setShowReadyCard] =
+    useState<boolean>(initialIsCreator);
+  const [showPtToastCard, setShowPtToastCard] =
+    useState<boolean>(initialIsCreator);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showReactionBar, setShowReactionBar] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -157,6 +216,7 @@ export function MeetingRoomView({
 
   // Streams & Refs
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const lobbyVideoElRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoElRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const stopVirtualCamRef = useRef<(() => void) | null>(null);
@@ -169,27 +229,28 @@ export function MeetingRoomView({
   );
 
   // Participants, Chat, Captions, Reactions, AI
-  const [participants, setParticipants] = useState<RoomParticipant[]>([
+  const [participants, setParticipants] = useState<RoomParticipant[]>(() => [
     {
-      id: "local_host",
-      name: "Você",
-      role: "HOST",
+      id: "local_user",
+      name: initialIsCreator ? "Organizador (Você)" : "Você",
+      role: initialIsCreator ? "HOST" : "PARTICIPANT",
       isLocal: true,
       isMuted: true,
       isCameraOff: true,
       isScreenSharing: false,
       isHandRaised: false,
       isSpeaking: false,
-      avatarColor: "#0b57d0",
+      avatarColor: initialIsCreator ? "#0b57d0" : "#0f5223",
       joinedAtIso: new Date().toISOString(),
     },
   ]);
+
   const [chatMessages, setChatMessages] = useState<RoomChatMessage[]>([
     {
       id: "welcome_msg",
       senderId: "system",
       senderName: "FREETING",
-      text: "As mensagens enviadas aqui são visíveis apenas para as pessoas na chamada.",
+      text: "As mensagens enviadas aqui são visíveis para as pessoas na chamada.",
       timestamp: "18:32",
     },
   ]);
@@ -199,7 +260,7 @@ export function MeetingRoomView({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponses, setAiResponses] = useState<AiAssistantResponse[]>([]);
 
-  // Unlimited Recording State
+  // Recording State
   const [recordingSession, setRecordingSession] =
     useState<UnlimitedRecordingSession | null>(null);
   const [recordingTickMs, setRecordingTickMs] = useState<number>(Date.now());
@@ -223,7 +284,13 @@ export function MeetingRoomView({
     }
   }, [onLeaveToHome, router]);
 
-  // Update clock and unlimited call duration every second
+  // Shareable URL that actually points to this live deployment
+  const realShareableLink = formatShareableLink(
+    roomCode,
+    typeof window !== "undefined" ? window.location.origin : undefined
+  );
+
+  // Update clock and call duration every second
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -234,13 +301,14 @@ export function MeetingRoomView({
     updateClock();
     const timer = setInterval(() => {
       updateClock();
-      setElapsedSeconds((prev) => prev + 1);
+      if (!inPreJoinLobby) {
+        setElapsedSeconds((prev) => prev + 1);
+      }
       setRecordingTickMs(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [inPreJoinLobby]);
 
-  // Load saved recordings from IndexedDB Vault
   const refreshVault = useCallback(async () => {
     const list = await listRecordingsFromVault();
     setSavedRecordings(list);
@@ -250,16 +318,68 @@ export function MeetingRoomView({
     refreshVault();
   }, [refreshVault]);
 
-  // Connect BroadcastChannel + WebRTC multi-tab signaling
+  // Connect Dual-Transport WebRTC Engine (PeerJS Cloud + BroadcastChannel) ONCE the user enters the room (after Pre-Join Lobby)
   useEffect(() => {
+    if (inPreJoinLobby) return;
+
     const localId = localPeerIdRef.current;
+    const effectiveName = displayName.trim()
+      ? displayName.trim()
+      : isCreatorRole
+      ? "Organizador"
+      : `Participante ${localId.slice(-3).toUpperCase()}`;
+
+    // Update our local tile name
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.isLocal
+          ? {
+              ...p,
+              id: localId,
+              name: `${effectiveName} (Você)`,
+              role: isCreatorRole ? "HOST" : "PARTICIPANT",
+            }
+          : p
+      )
+    );
+
     const engine = new FreetingWebRtcRoomEngine({
       roomCode,
       localId,
+      onRoleResolved: (resolvedRole) => {
+        const isHostNow = resolvedRole === "HOST";
+        setIsCreatorRole(isHostNow);
+        if (!isHostNow) {
+          // If another user is already the Host of this room, hide the Creator invite card!
+          setShowReadyCard(false);
+          setShowPtToastCard(false);
+        }
+        setParticipants((prev) =>
+          prev.map((p) => (p.isLocal ? { ...p, role: resolvedRole } : p))
+        );
+      },
       onSignal: (payload) => {
         if (payload.type === "PEER_ANNOUNCE") {
           setParticipants((prev) => {
-            if (prev.some((p) => p.id === payload.participant.id)) return prev;
+            const exists = prev.some((p) => p.id === payload.participant.id);
+            if (exists) {
+              return prev.map((p) =>
+                p.id === payload.participant.id
+                  ? {
+                      ...p,
+                      ...payload.participant,
+                      stream: p.stream,
+                      isLocal: false,
+                    }
+                  : p
+              );
+            }
+            if (!payload.isReply) {
+              showToast(`${payload.participant.name} entrou na reunião`);
+            }
+            // Automatically hide the initial invite card once another participant is in the room
+            setShowReadyCard(false);
+            setShowPtToastCard(false);
             return [
               ...prev,
               {
@@ -275,15 +395,25 @@ export function MeetingRoomView({
             )
           );
         } else if (payload.type === "PEER_LEAVE") {
-          setParticipants((prev) =>
-            prev.filter((p) => p.id !== payload.participantId)
-          );
+          setParticipants((prev) => {
+            const leaving = prev.find((p) => p.id === payload.participantId);
+            if (leaving) {
+              showToast(`${leaving.name} saiu da reunião`);
+            }
+            return prev.filter((p) => p.id !== payload.participantId);
+          });
         } else if (payload.type === "CHAT_MESSAGE") {
-          setChatMessages((prev) => [...prev, payload.message]);
+          setChatMessages((prev) => {
+            if (prev.some((m) => m.id === payload.message.id)) return prev;
+            return [...prev, payload.message];
+          });
         } else if (payload.type === "REACTION") {
           spawnReaction(payload.emoji, payload.senderName);
         } else if (payload.type === "CAPTION") {
-          setCaptions((prev) => [...prev, payload.entry]);
+          setCaptions((prev) => {
+            if (prev.some((c) => c.id === payload.entry.id)) return prev;
+            return [...prev, payload.entry];
+          });
         }
       },
       onRemoteStream: (peerId, stream) => {
@@ -297,21 +427,29 @@ export function MeetingRoomView({
     engine.connect(
       {
         id: localId,
-        name: "Participante (Outra Aba)",
-        role: "PARTICIPANT",
-        isMuted: true,
-        isCameraOff: true,
+        name: effectiveName,
+        role: isCreatorRole ? "HOST" : "PARTICIPANT",
+        isMuted,
+        isCameraOff,
         isScreenSharing: false,
         isHandRaised: false,
-        isSpeaking: false,
-        avatarColor: pickAvatarColor(localId),
+        isSpeaking: !isMuted,
+        avatarColor: pickAvatarColor(effectiveName + localId),
         joinedAtIso: new Date().toISOString(),
       },
-      null
+      localStreamRef.current,
+      isCreatorRole
     );
 
     return () => {
       engine.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inPreJoinLobby, roomCode]);
+
+  // Cleanup all streams on unmount
+  useEffect(() => {
+    return () => {
       if (stopVirtualCamRef.current) {
         stopVirtualCamRef.current();
         stopVirtualCamRef.current = null;
@@ -326,12 +464,22 @@ export function MeetingRoomView({
       releaseMediaStream(localStreamRef.current);
       releaseMediaStream(screenStreamRef.current);
     };
-  }, [roomCode]);
+  }, []);
 
-  // Callback refs to bind MediaStream immediately when <video> mounts
   const bindLocalVideoRef = useCallback(
     (el: HTMLVideoElement | null) => {
       localVideoElRef.current = el;
+      if (el && localStreamRef.current && !isCameraOff) {
+        el.srcObject = localStreamRef.current;
+        el.play().catch(() => {});
+      }
+    },
+    [isCameraOff]
+  );
+
+  const bindLobbyVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      lobbyVideoElRef.current = el;
       if (el && localStreamRef.current && !isCameraOff) {
         el.srcObject = localStreamRef.current;
         el.play().catch(() => {});
@@ -368,6 +516,10 @@ export function MeetingRoomView({
           audio: true,
         });
         if (localStreamRef.current) {
+          // Remove old ended audio tracks and add live audio track
+          localStreamRef.current
+            .getAudioTracks()
+            .forEach((old) => localStreamRef.current?.removeTrack(old));
           audioStream.getAudioTracks().forEach((t) => {
             localStreamRef.current?.addTrack(t);
           });
@@ -377,7 +529,7 @@ export function MeetingRoomView({
         webrtcEngineRef.current?.updateLocalStream(localStreamRef.current);
         showToast("Microfone ativado");
       } catch {
-        showToast("Microfone em modo simulado (sem dispositivo físico detectado)");
+        showToast("Microfone ativado (modo simulado)");
       }
       setIsMuted(false);
       webrtcEngineRef.current?.updateLocalParticipantMeta({
@@ -407,29 +559,41 @@ export function MeetingRoomView({
     }
   }, [isMuted, showToast]);
 
-  // Toggle Camera (Real Webcam OR Automatic 30fps Virtual Studio Camera Fallback!)
+  // Toggle Camera
   const handleToggleCamera = useCallback(async () => {
     if (isCameraOff) {
-      let acquiredStream: MediaStream | null = null;
+      let videoStream: MediaStream | null = null;
       let usingVirtual = false;
+      const labelName = displayName.trim() || "Você";
 
       try {
-        acquiredStream = await navigator.mediaDevices.getUserMedia({
+        videoStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 1280, height: 720 },
           audio: !isMuted,
         });
       } catch {
-        // Fallback: generate live 30fps virtual studio camera stream so camera ALWAYS works!
-        const virtualCam = createVirtualCameraStream("Erick (Você)", roomCode);
-        acquiredStream = virtualCam.stream;
+        const virtualCam = createVirtualCameraStream(labelName, roomCode);
+        videoStream = virtualCam.stream;
         stopVirtualCamRef.current = virtualCam.stopVirtualCamera;
         usingVirtual = true;
       }
 
-      localStreamRef.current = acquiredStream;
+      // Preserve existing live audio tracks if already unmuted
+      if (
+        localStreamRef.current &&
+        localStreamRef.current.getAudioTracks().length > 0 &&
+        videoStream &&
+        videoStream.getAudioTracks().length === 0
+      ) {
+        localStreamRef.current
+          .getAudioTracks()
+          .forEach((at) => videoStream?.addTrack(at));
+      }
+
+      localStreamRef.current = videoStream;
       setIsVirtualCamera(usingVirtual);
       setIsCameraOff(false);
-      webrtcEngineRef.current?.updateLocalStream(acquiredStream);
+      webrtcEngineRef.current?.updateLocalStream(videoStream);
       webrtcEngineRef.current?.updateLocalParticipantMeta({
         isCameraOff: false,
       });
@@ -437,22 +601,29 @@ export function MeetingRoomView({
         prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
       );
 
-      if (localVideoElRef.current && acquiredStream) {
-        localVideoElRef.current.srcObject = acquiredStream;
+      if (localVideoElRef.current && videoStream) {
+        localVideoElRef.current.srcObject = videoStream;
         localVideoElRef.current.play().catch(() => {});
+      }
+      if (lobbyVideoElRef.current && videoStream) {
+        lobbyVideoElRef.current.srcObject = videoStream;
+        lobbyVideoElRef.current.play().catch(() => {});
       }
 
       showToast(
         usingVirtual
-          ? "Câmera Virtual Studio HD ativada (nenhuma webcam física detectada)"
-          : "Câmera HD ativada"
+          ? "Câmera Studio HD ativada (sem webcam física detectada)"
+          : "Câmera ativada"
       );
     } else {
       if (stopVirtualCamRef.current) {
         stopVirtualCamRef.current();
         stopVirtualCamRef.current = null;
       }
-      localStreamRef.current?.getVideoTracks().forEach((t) => t.stop());
+      localStreamRef.current?.getVideoTracks().forEach((t) => {
+        t.stop();
+        localStreamRef.current?.removeTrack(t);
+      });
       setIsCameraOff(true);
       setIsVirtualCamera(false);
       webrtcEngineRef.current?.updateLocalParticipantMeta({
@@ -463,7 +634,7 @@ export function MeetingRoomView({
       );
       showToast("Câmera desativada");
     }
-  }, [isCameraOff, isMuted, roomCode, showToast]);
+  }, [isCameraOff, isMuted, displayName, roomCode, showToast]);
 
   // Toggle Screen Share
   const handleToggleScreenShare = async () => {
@@ -479,10 +650,23 @@ export function MeetingRoomView({
           videoTrack.onended = () => {
             setIsScreenSharing(false);
             screenStreamRef.current = null;
+            webrtcEngineRef.current?.updateLocalParticipantMeta({
+              isScreenSharing: false,
+            });
+            if (localStreamRef.current) {
+              webrtcEngineRef.current?.updateLocalStream(
+                localStreamRef.current
+              );
+            }
             showToast("Apresentação de tela encerrada");
           };
         }
         setIsScreenSharing(true);
+        webrtcEngineRef.current?.updateLocalParticipantMeta({
+          isScreenSharing: true,
+          isCameraOff: false,
+        });
+        webrtcEngineRef.current?.updateLocalStream(displayStream);
         if (screenVideoElRef.current) {
           screenVideoElRef.current.srcObject = displayStream;
           screenVideoElRef.current.play().catch(() => {});
@@ -495,11 +679,18 @@ export function MeetingRoomView({
       releaseMediaStream(screenStreamRef.current);
       screenStreamRef.current = null;
       setIsScreenSharing(false);
+      webrtcEngineRef.current?.updateLocalParticipantMeta({
+        isScreenSharing: false,
+        isCameraOff,
+      });
+      if (localStreamRef.current) {
+        webrtcEngineRef.current?.updateLocalStream(localStreamRef.current);
+      }
       showToast("Apresentação de tela encerrada");
     }
   };
 
-  // Start / Pause / Resume / Stop Unlimited Recording
+  // Start / Pause / Resume / Stop Recording
   const handleStartUnlimitedRecording = useCallback(async () => {
     try {
       const recorder = new LiveUnlimitedMediaRecorder(roomCode, (updated) => {
@@ -513,7 +704,11 @@ export function MeetingRoomView({
 
       await recorder.start({
         primaryVideoStream: primaryStream,
-        audioStreams: [localStreamRef.current, screenStreamRef.current],
+        audioStreams: [
+          localStreamRef.current,
+          screenStreamRef.current,
+          ...participants.map((p) => p.stream),
+        ],
         roomCode,
         participantNames: participants.map((p) => p.name),
         getActiveCaption: () =>
@@ -536,11 +731,11 @@ export function MeetingRoomView({
         type: "CHAT_MESSAGE",
         message: lgpdNotice,
       });
-      showToast("● Gravação iniciada (Aviso de transparência LGPD enviado na sala)");
+      showToast("● Gravação iniciada");
     } catch {
       showToast("Erro ao iniciar gravação no navegador.");
     }
-  }, [roomCode, isScreenSharing, participants, captions, showToast]);
+  }, [roomCode, isScreenSharing, participants, captions, clockText, showToast]);
 
   const handlePauseResumeRecording = () => {
     if (!recorderRef.current || !recordingSession) return;
@@ -570,26 +765,26 @@ export function MeetingRoomView({
       setPreviewVideoUrl(url);
     }
     setActiveDrawer("activities");
-    showToast("✓ Gravação salva no Cofre e download .webm iniciado!");
+    showToast("✓ Gravação concluída e salva!");
   }, [roomCode, captions, showToast, refreshVault]);
 
-  // Toggle Live Captions (pt-BR) with real Web Speech API + interactive fallback
+  // Toggle Live Captions (pt-BR)
   const handleToggleCaptions = useCallback(() => {
     const next = !isCaptionsOn;
     setIsCaptionsOn(next);
 
     if (next) {
+      const localSpeaker = displayName.trim() || "Você";
       const entry: RoomCaptionEntry = {
         id: `cap_${Date.now()}`,
-        speakerName: "Erick (Você)",
-        text: "Legendas em Português ativadas. Esta reunião no FREETING não possui limite de 1 hora e a gravação é ilimitada.",
+        speakerName: localSpeaker,
+        text: "Legendas ao vivo em Português ativadas.",
         timestamp: clockText,
       };
       setCaptions((prev) => [...prev, entry]);
       webrtcEngineRef.current?.broadcast({ type: "CAPTION", entry });
-      showToast("Legendas ao vivo em Português (CC) ativadas");
+      showToast("Legendas em Português (CC) ativadas");
 
-      // Attempt real browser Web Speech API SpeechRecognition
       if (typeof window !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -611,7 +806,7 @@ export function MeetingRoomView({
                 if (spokenText) {
                   const capEntry: RoomCaptionEntry = {
                     id: `cap_${Date.now()}`,
-                    speakerName: "Erick (Voz ao Vivo)",
+                    speakerName: localSpeaker,
                     text: spokenText,
                     timestamp: new Date().toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
@@ -629,7 +824,7 @@ export function MeetingRoomView({
             recognition.start();
             speechRecognitionRef.current = recognition;
           } catch {
-            // Browser speech recognition not permitted or active
+            // Browser speech recognition not active
           }
         }
       }
@@ -644,10 +839,11 @@ export function MeetingRoomView({
       }
       showToast("Legendas ao vivo desativadas");
     }
-  }, [isCaptionsOn, clockText, showToast]);
+  }, [isCaptionsOn, displayName, clockText, lgpdAutoMask, showToast]);
 
   // Global Accessible Keyboard Shortcuts
   useEffect(() => {
+    if (inPreJoinLobby) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -682,6 +878,7 @@ export function MeetingRoomView({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    inPreJoinLobby,
     handleToggleMic,
     handleToggleCamera,
     handleStartUnlimitedRecording,
@@ -690,7 +887,7 @@ export function MeetingRoomView({
     recordingSession,
   ]);
 
-  // Simulate adding a remote WebRTC participant
+  // Simulate adding a participant for quick testing
   const handleAddSimulatedParticipant = () => {
     const profile =
       SIMULATED_BOT_PROFILES[
@@ -712,6 +909,8 @@ export function MeetingRoomView({
       joinedAtIso: new Date().toISOString(),
     };
     setParticipants((prev) => [...prev, newBot]);
+    setShowReadyCard(false);
+    setShowPtToastCard(false);
     showToast(`${profile.name} entrou na reunião`);
 
     const botMsg: RoomChatMessage = {
@@ -752,15 +951,18 @@ export function MeetingRoomView({
     showToast("Resumo da IA gerado com sucesso");
   };
 
-  // Send Chat Message (with LGPD personal data masking and interactive response)
+  // Send Chat Message (broadcasts over BOTH PeerJS DataChannel AND BroadcastChannel!)
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatDraft.trim()) return;
     const userText = maskPersonalDataInText(chatDraft.trim(), lgpdAutoMask);
+    const localSenderName =
+      displayName.trim() || (isCreatorRole ? "Organizador" : "Participante");
+
     const msg: RoomChatMessage = {
-      id: `chat_${Date.now()}`,
-      senderId: "local_host",
-      senderName: "Você",
+      id: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      senderId: localPeerIdRef.current,
+      senderName: localSenderName,
       text: userText,
       timestamp: clockText,
     };
@@ -768,20 +970,17 @@ export function MeetingRoomView({
     webrtcEngineRef.current?.broadcast({ type: "CHAT_MESSAGE", message: msg });
     setChatDraft("");
 
-    // Also add to live transcript if captions are on
     if (isCaptionsOn) {
-      setCaptions((prev) => [
-        ...prev,
-        {
-          id: `cap_chat_${Date.now()}`,
-          speakerName: "Erick (Você)",
-          text: userText,
-          timestamp: clockText,
-        },
-      ]);
+      const capEntry: RoomCaptionEntry = {
+        id: `cap_chat_${Date.now()}`,
+        speakerName: localSenderName,
+        text: userText,
+        timestamp: clockText,
+      };
+      setCaptions((prev) => [...prev, capEntry]);
+      webrtcEngineRef.current?.broadcast({ type: "CAPTION", entry: capEntry });
     }
 
-    // If simulated bot participants are in the room, have one reply naturally
     const bots = participants.filter((p) => p.isSimulated);
     if (bots.length > 0) {
       const responder = bots[bots.length - 1];
@@ -804,20 +1003,10 @@ export function MeetingRoomView({
           }),
         };
         setChatMessages((prev) => [...prev, replyMsg]);
-        setCaptions((prev) => [
-          ...prev,
-          {
-            id: `cap_bot_${Date.now()}`,
-            speakerName: responder.name,
-            text: replyText,
-            timestamp: replyMsg.timestamp,
-          },
-        ]);
       }, 1200);
     }
   };
 
-  // Download Markdown Minutes & Transcript
   const handleExportMarkdownMinutes = () => {
     const md = exportMeetingMinutesMarkdown({
       roomCode,
@@ -829,10 +1018,9 @@ export function MeetingRoomView({
     });
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     triggerBlobDownload(blob, `ata-freeting-${roomCode}.md`);
-    showToast("Ata da reunião exportada em Markdown (.md)");
+    showToast("Resumo da reunião exportado");
   };
 
-  // End Call & Clean Hardware Tracks
   const handleEndCall = async () => {
     if (recorderRef.current && recordingSession) {
       await handleStopAndDownloadRecording();
@@ -855,14 +1043,10 @@ export function MeetingRoomView({
   };
 
   const handleCopyRoomLink = async () => {
-    const url = formatShareableLink(
-      roomCode,
-      typeof window !== "undefined" ? window.location.origin : undefined
-    );
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(realShareableLink);
       setCopiedLink(true);
-      showToast("Link da reunião copiado para a área de transferência!");
+      showToast("Link da reunião copiado!");
       setTimeout(() => setCopiedLink(false), 2500);
     } catch {
       // ignore
@@ -876,13 +1060,148 @@ export function MeetingRoomView({
       )
     : 0;
 
+  // ============================================================================
+  // SCREEN 1: PRE-JOIN GREEN ROOM LOBBY ("Pronto para participar?")
+  // Shown whenever a guest opens a shared link or joins via code!
+  // ============================================================================
+  if (inPreJoinLobby) {
+    return (
+      <div className="min-h-screen bg-white text-[#1f1f1f] flex flex-col">
+        {/* Clean Header */}
+        <header className="h-16 px-6 flex items-center justify-between border-b border-[#dadce0]/60">
+          <button
+            type="button"
+            onClick={navigateBackHome}
+            className="text-xl font-bold tracking-wider text-[#B8860B] cursor-pointer"
+          >
+            FREETING
+          </button>
+          <span className="text-xs text-[#5f6368] font-mono">
+            Sala: {roomCode}
+          </span>
+        </header>
+
+        {/* Main Pre-Join Lobby Content */}
+        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Left: 16:9 Camera & Microphone Preview Box */}
+          <div className="lg:col-span-7 bg-[#202124] rounded-2xl aspect-video relative overflow-hidden flex items-center justify-center shadow-xl">
+            {!isCameraOff ? (
+              <video
+                ref={bindLobbyVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-center space-y-3">
+                <div className="w-20 h-20 rounded-full bg-[#0b57d0] text-white text-2xl font-semibold flex items-center justify-center mx-auto shadow-md">
+                  {(displayName.trim() || "P").charAt(0).toUpperCase()}
+                </div>
+                <p className="text-sm text-[#e3e3e3]">A câmera está desligada</p>
+              </div>
+            )}
+
+            {/* Bottom Floating Mic & Camera Controls inside Preview */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
+                  isMuted
+                    ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
+                    : "bg-[#3c4043]/90 text-white hover:bg-[#4e5256]"
+                }`}
+              >
+                {isMuted ? (
+                  <MicOff className="w-5 h-5" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleCamera}
+                aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
+                  isCameraOff
+                    ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
+                    : "bg-[#3c4043]/90 text-white hover:bg-[#4e5256]"
+                }`}
+              >
+                {isCameraOff ? (
+                  <VideoOff className="w-5 h-5" />
+                ) : (
+                  <Video className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Right: "Pronto para participar?" Form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setInPreJoinLobby(false);
+            }}
+            className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left space-y-5"
+          >
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-normal text-[#1f1f1f]">
+                Pronto para participar?
+              </h1>
+              <p className="text-sm text-[#5f6368] mt-1">
+                Você está entrando na reunião <code className="font-mono font-semibold text-[#1f1f1f]">{roomCode}</code>
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm">
+              <label className="block text-xs font-medium text-[#5f6368] mb-1.5">
+                Qual é o seu nome?
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Digite seu nome para entrar na sala"
+                autoFocus
+                className="w-full border border-[#dadce0] focus:border-[#0b57d0] focus:ring-2 focus:ring-[#0b57d0]/20 rounded-xl px-4 py-3 text-sm text-[#1f1f1f] focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="submit"
+                className="h-12 px-8 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white text-sm font-semibold shadow-md transition-colors cursor-pointer"
+              >
+                Participar agora
+              </button>
+              <button
+                type="button"
+                onClick={navigateBackHome}
+                className="h-12 px-5 rounded-full border border-[#dadce0] hover:bg-[#f1f3f4] text-sm font-medium text-[#5f6368] transition-colors cursor-pointer"
+              >
+                Voltar
+              </button>
+            </div>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // SCREEN 2: POST-CALL SUMMARY ("Você saiu da reunião")
+  // ============================================================================
   if (isCallEnded) {
     return (
       <div className="min-h-screen bg-[#131314] text-white flex flex-col items-center justify-center p-6">
         <div className="max-w-lg w-full bg-[#1e1f20] border border-[#3c4043] rounded-3xl p-8 text-center space-y-5 shadow-2xl">
           <h1 className="text-2xl font-normal">Você saiu da reunião</h1>
           <p className="text-sm text-[#c4c7c5]">
-            Sala <code className="text-white font-mono">{roomCode}</code> • Duração:{" "}
+            Sala <code className="text-white font-mono">{roomCode}</code> •
+            Duração:{" "}
             <strong className="text-white">
               {formatUnlimitedDuration(elapsedSeconds)}
             </strong>
@@ -917,18 +1236,19 @@ export function MeetingRoomView({
     );
   }
 
+  // ============================================================================
+  // SCREEN 3: ACTIVE MEETING ROOM
+  // ============================================================================
   return (
     <div
       className={`h-screen w-screen flex flex-col justify-between overflow-hidden select-none ${
         highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
       }`}
     >
-      {/* ARIA Live Status Region */}
       <div role="status" aria-live="polite" className="sr-only">
         {a11yLiveText}
       </div>
 
-      {/* VISIBLE FEEDBACK TOAST BANNER */}
       {statusToast && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-5 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#81c995]" />
@@ -939,15 +1259,6 @@ export function MeetingRoomView({
       {/* TOP BAR */}
       <header className="h-14 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={navigateBackHome}
-            title="Voltar ao painel inicial FREETING"
-            className="text-xs font-bold tracking-wider text-[#E6C365] hover:underline cursor-pointer"
-          >
-            FREETING
-          </button>
-          <span className="text-[#5f6368]">|</span>
           <span className="text-sm font-medium text-[#e3e3e3]">{clockText}</span>
           <span className="text-[#5f6368]">|</span>
           <span className="text-sm font-medium text-[#e3e3e3] tracking-wide">
@@ -1001,15 +1312,6 @@ export function MeetingRoomView({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleAddSimulatedParticipant}
-            className="hidden md:flex items-center gap-1.5 bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] border border-[#3c4043] rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>+ Simular Participante</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => {
               setHighContrastMode((v) => !v);
               showToast(
@@ -1018,7 +1320,7 @@ export function MeetingRoomView({
                   : "Alto contraste desativado"
               );
             }}
-            title="Alternar Modo Alto Contraste (Acessibilidade WCAG AAA)"
+            title="Alternar Modo Alto Contraste"
             aria-label="Alternar Alto Contraste"
             className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
               highContrastMode
@@ -1032,7 +1334,7 @@ export function MeetingRoomView({
           <button
             type="button"
             onClick={() => setShowShortcutsModal(true)}
-            title="Atalhos de Teclado e Acessibilidade (?)"
+            title="Atalhos de Teclado (?)"
             aria-label="Abrir guia de atalhos de teclado"
             className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
           >
@@ -1058,8 +1360,8 @@ export function MeetingRoomView({
             onClick={() =>
               setActiveDrawer((d) => (d === "activities" ? null : "activities"))
             }
-            title="Efeitos e Gravações Ilimitadas"
-            aria-label="Atividades e gravações"
+            title="Gravações e atividades"
+            aria-label="Gravações e atividades"
             className="w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] flex items-center justify-center text-[#c4c7c5] cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
@@ -1109,145 +1411,160 @@ export function MeetingRoomView({
           }`}
         >
           {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
-            (participant) => (
-              <div
-                key={participant.id}
-                className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group flex-1 ${
-                  highContrastMode
-                    ? "bg-[#0a192f] border-2 border-yellow-400"
-                    : "bg-[#1b3a6b] border border-white/10"
-                }`}
-              >
-                {/* Top-Right Mic Status / Equalizer Badge */}
-                <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1.5">
-                  {participant.isLocal && !isCameraOff && isVirtualCamera && (
-                    <span className="bg-black/60 text-[#81c995] text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#81c995]/30">
-                      Câmera Studio HD
-                    </span>
-                  )}
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                      participant.isMuted
-                        ? "bg-[#172b4d]/80 text-[#8ab4f8]"
-                        : "bg-[#137333]/90 text-white"
-                    }`}
-                  >
-                    {participant.isMuted ? (
-                      <MicOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <div className="flex items-end gap-0.5 h-3">
-                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
-                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
-                        <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
-                      </div>
-                    )}
-                  </div>
-                </div>
+            (participant) => {
+              const hasRemoteVideo =
+                !participant.isLocal &&
+                !participant.isCameraOff &&
+                !!participant.stream &&
+                participant.stream
+                  .getVideoTracks()
+                  .some((t) => t.readyState === "live");
 
-                {/* Raised Hand Badge */}
-                {participant.isHandRaised && (
-                  <div className="absolute top-3.5 left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md">
-                    <Hand className="w-3.5 h-3.5" />
-                    Mão levantada
-                  </div>
-                )}
-
-                {/* Live Camera Video or Centered Avatar */}
-                {participant.isLocal && !isCameraOff ? (
-                  <video
-                    ref={bindLocalVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="relative flex items-center justify-center">
+              return (
+                <div
+                  key={participant.id}
+                  className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group flex-1 ${
+                    highContrastMode
+                      ? "bg-[#0a192f] border-2 border-yellow-400"
+                      : "bg-[#1b3a6b] border border-white/10"
+                  }`}
+                >
+                  {/* Top-Right Mic Status / Equalizer Badge */}
+                  <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1.5">
                     <div
-                      style={{ backgroundColor: participant.avatarColor }}
-                      className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg transition-transform ${
-                        !participant.isMuted
-                          ? "ring-4 ring-[#8ab4f8]/70 scale-105"
-                          : ""
+                      className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                        participant.isMuted
+                          ? "bg-[#172b4d]/80 text-[#8ab4f8]"
+                          : "bg-[#137333]/90 text-white"
                       }`}
                     >
-                      {participant.name.charAt(0).toUpperCase()}
-                    </div>
-
-                    {/* Center Hover Action Pill across Avatar */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="bg-[#202124]/75 hover:bg-[#202124]/95 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              typeof document !== "undefined" &&
-                              document.documentElement.requestFullscreen
-                            ) {
-                              if (!document.fullscreenElement) {
-                                document.documentElement
-                                  .requestFullscreen()
-                                  .catch(() => {});
-                              } else {
-                                document.exitFullscreen?.().catch(() => {});
-                              }
-                            }
-                          }}
-                          title="Tela cheia"
-                          aria-label="Alternar tela cheia"
-                          className="hover:text-white cursor-pointer"
-                        >
-                          <Maximize2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLayoutMode((m) =>
-                              m === "spotlight" ? "auto" : "spotlight"
-                            );
-                            showToast(
-                              layoutMode === "spotlight"
-                                ? "Layout em grade restaurado"
-                                : `${participant.name} fixado na tela principal`
-                            );
-                          }}
-                          title="Fixar em destaque"
-                          aria-label="Fixar participante na tela principal"
-                          className="hover:text-white cursor-pointer"
-                        >
-                          <Pin className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowMoreMenu((v) => !v)}
-                          title="Mais opções"
-                          aria-label="Mais opções do participante"
-                          className="hover:text-white cursor-pointer"
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {participant.isMuted ? (
+                        <MicOff className="w-3.5 h-3.5" />
+                      ) : (
+                        <div className="flex items-end gap-0.5 h-3">
+                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
+                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
+                          <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
 
-                {/* Bottom-left Participant Nameplate */}
-                <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
-                  <span>{participant.name}</span>
-                  {participant.isSimulated && (
-                    <span className="text-[10px] text-[#8ab4f8]">
-                      • Conectado
-                    </span>
+                  {/* Raised Hand Badge */}
+                  {participant.isHandRaised && (
+                    <div className="absolute top-3.5 left-3.5 z-10 bg-[#fbbc04] text-[#1f1f1f] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md">
+                      <Hand className="w-3.5 h-3.5" />
+                      Mão levantada
+                    </div>
                   )}
+
+                  {/* Remote Audio + Video Renderer */}
+                  {!participant.isLocal && (
+                    <RemoteParticipantMedia
+                      stream={participant.stream}
+                      isCameraOff={participant.isCameraOff}
+                      isMuted={participant.isMuted}
+                    />
+                  )}
+
+                  {/* Local Camera Video or Centered Avatar */}
+                  {participant.isLocal && !isCameraOff ? (
+                    <video
+                      ref={bindLocalVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  ) : !hasRemoteVideo ? (
+                    <div className="relative flex items-center justify-center">
+                      <div
+                        style={{ backgroundColor: participant.avatarColor }}
+                        className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg transition-transform ${
+                          !participant.isMuted
+                            ? "ring-4 ring-[#8ab4f8]/70 scale-105"
+                            : ""
+                        }`}
+                      >
+                        {participant.name.charAt(0).toUpperCase()}
+                      </div>
+
+                      {/* Center Hover Action Pill across Avatar */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-[#202124]/75 hover:bg-[#202124]/95 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                typeof document !== "undefined" &&
+                                document.documentElement.requestFullscreen
+                              ) {
+                                if (!document.fullscreenElement) {
+                                  document.documentElement
+                                    .requestFullscreen()
+                                    .catch(() => {});
+                                } else {
+                                  document.exitFullscreen?.().catch(() => {});
+                                }
+                              }
+                            }}
+                            title="Tela cheia"
+                            aria-label="Alternar tela cheia"
+                            className="hover:text-white cursor-pointer"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLayoutMode((m) =>
+                                m === "spotlight" ? "auto" : "spotlight"
+                              );
+                              showToast(
+                                layoutMode === "spotlight"
+                                  ? "Layout em grade restaurado"
+                                  : `${participant.name} fixado na tela principal`
+                              );
+                            }}
+                            title="Fixar em destaque"
+                            aria-label="Fixar participante na tela principal"
+                            className="hover:text-white cursor-pointer"
+                          >
+                            <Pin className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowMoreMenu((v) => !v)}
+                            title="Mais opções"
+                            aria-label="Mais opções do participante"
+                            className="hover:text-white cursor-pointer"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Bottom-left Participant Nameplate */}
+                  <div className="absolute bottom-3 left-3.5 bg-black/60 backdrop-blur-xs px-3 py-1 rounded-full text-xs font-medium text-white flex items-center gap-2">
+                    <span>{participant.name}</span>
+                    <span className="text-[10px] text-[#a8c7fa]">
+                      •{" "}
+                      {participant.role === "HOST"
+                        ? "Organizador"
+                        : "Participante"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )
+              );
+            }
           )}
         </div>
 
-        {/* FLOATING OVERLAY: "Sua reunião está pronta" + Teal Portuguese AI Card */}
+        {/* FLOATING OVERLAY: "Sua reunião está pronta" (Shown ONLY to the Host/Creator or when (i) is clicked) */}
         {showReadyCard && (
-          <div className="absolute bottom-3 left-6 z-30 w-[320px] flex flex-col">
+          <div className="absolute bottom-3 left-6 z-30 w-[330px] flex flex-col">
             <div className="bg-white text-[#1f1f1f] rounded-2xl p-5 shadow-2xl">
               <div className="flex items-center justify-between mb-3.5">
                 <h2 className="text-base font-medium text-[#1f1f1f]">
@@ -1265,11 +1582,11 @@ export function MeetingRoomView({
 
               <button
                 type="button"
-                onClick={handleAddSimulatedParticipant}
+                onClick={handleCopyRoomLink}
                 className="bg-[#0b57d0] hover:bg-[#0842a0] text-white rounded-full px-4 py-2.5 text-xs font-medium inline-flex items-center gap-2 mb-3.5 cursor-pointer shadow-xs"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Adicionar outras pessoas</span>
+                <span>Copiar convite para outras pessoas</span>
               </button>
 
               <p className="text-xs text-[#444746] leading-relaxed mb-2.5">
@@ -1279,7 +1596,7 @@ export function MeetingRoomView({
 
               <div className="bg-[#f1f3f4] rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs text-[#1f1f1f] truncate font-mono">
-                  {`freeting.app/${roomCode}`}
+                  {realShareableLink}
                 </span>
                 <button
                   type="button"
@@ -1350,36 +1667,9 @@ export function MeetingRoomView({
               <div>
                 <div className="text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
                   {captions[captions.length - 1].speakerName} • Legendas ao Vivo
-                  (Português)
                 </div>
                 <div>{captions[captions.length - 1].text}</div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const sampleSpeeches = [
-                    "Estamos validando o novo motor de gravação ilimitada em WebM no navegador.",
-                    "A sincronização com o banco SQLite ficou instantânea e sem limite de 60 minutos.",
-                    "Podemos gerar a ata completa em Markdown clicando no assistente de IA.",
-                  ];
-                  const nextText =
-                    sampleSpeeches[captions.length % sampleSpeeches.length];
-                  const entry: RoomCaptionEntry = {
-                    id: `cap_sim_${Date.now()}`,
-                    speakerName: "Erick (Você)",
-                    text: nextText,
-                    timestamp: clockText,
-                  };
-                  setCaptions((prev) => [...prev, entry]);
-                  webrtcEngineRef.current?.broadcast({
-                    type: "CAPTION",
-                    entry,
-                  });
-                }}
-                className="shrink-0 bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] text-[11px] font-medium px-3 py-1.5 rounded-full border border-[#3c4043] cursor-pointer"
-              >
-                + Simular Fala
-              </button>
             </div>
           </div>
         )}
@@ -1392,10 +1682,8 @@ export function MeetingRoomView({
                 {activeDrawer === "people" &&
                   `Pessoas (${participants.length})`}
                 {activeDrawer === "chat" && "Mensagens na chamada"}
-                {activeDrawer === "ai" &&
-                  "Assistente IA FREETING (Português)"}
-                {activeDrawer === "activities" &&
-                  "Gravações Ilimitadas (∞) & Ata"}
+                {activeDrawer === "ai" && "Assistente IA (Português)"}
+                {activeDrawer === "activities" && "Gravações & Resumo"}
                 {activeDrawer === "security" && "Controles do Organizador"}
               </h3>
               <button
@@ -1413,11 +1701,11 @@ export function MeetingRoomView({
                 <>
                   <button
                     type="button"
-                    onClick={handleAddSimulatedParticipant}
+                    onClick={handleCopyRoomLink}
                     className="w-full py-2.5 px-4 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    Adicionar Participante Simulado
+                    <Copy className="w-4 h-4" />
+                    Copiar link para convidar pessoas
                   </button>
                   <div className="space-y-2 pt-2">
                     {participants.map((p) => (
@@ -1430,7 +1718,7 @@ export function MeetingRoomView({
                             style={{ backgroundColor: p.avatarColor }}
                             className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
                           >
-                            {p.name.charAt(0)}
+                            {p.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <div className="font-medium text-white">
@@ -1439,7 +1727,7 @@ export function MeetingRoomView({
                             <div className="text-[11px] text-[#9aa0a6]">
                               {p.role === "HOST"
                                 ? "Organizador da reunião"
-                                : "Participante conectado"}
+                                : "Participante"}
                             </div>
                           </div>
                         </div>
@@ -1493,7 +1781,7 @@ export function MeetingRoomView({
                 <div className="space-y-3">
                   <div className="bg-[#004a77]/60 border border-[#00639b] rounded-xl p-3 text-[#c2e7ff]">
                     Faça perguntas ao Assistente IA sobre a discussão ou gere a
-                    ata completa sem limite de tempo.
+                    ata completa.
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <button
@@ -1513,7 +1801,7 @@ export function MeetingRoomView({
                       onClick={handleExportMarkdownMinutes}
                       className="bg-[#1e3a2f] hover:bg-[#274d3e] text-[#81c995] px-3 py-1.5 rounded-full text-[11px] cursor-pointer"
                     >
-                      ⬇ Baixar Ata (.md)
+                      ⬇ Baixar Ata
                     </button>
                   </div>
                   {aiResponses.map((res, idx) => (
@@ -1631,7 +1919,7 @@ export function MeetingRoomView({
                           </button>
                           <button
                             type="button"
-                            title="Baixar arquivo .webm"
+                            title="Baixar gravação"
                             onClick={async () => {
                               const blob = await assembleRecordingBlobFromVault(
                                 rec.sessionId,
@@ -1715,7 +2003,6 @@ export function MeetingRoomView({
 
       {/* BOTTOM CONTROL BAR */}
       <footer className="h-20 px-5 flex items-center justify-between gap-4 shrink-0 relative">
-        {/* Left: "Pedir para ... Somente você ↑" AI Prompt Bar */}
         <form
           onSubmit={handleSendAiPrompt}
           className="hidden lg:flex items-center bg-[#282a2c] hover:bg-[#323537] border border-[#3c4043] rounded-full h-12 pl-4 pr-2 w-[310px] justify-between transition-colors"
@@ -1746,7 +2033,7 @@ export function MeetingRoomView({
           </div>
         </form>
 
-        {/* Center: Main Media Controls Pill Group */}
+        {/* Center Media Controls */}
         <div
           role="toolbar"
           aria-label="Controles de mídia e gravação da reunião"
@@ -1896,11 +2183,14 @@ export function MeetingRoomView({
                     key={emoji}
                     type="button"
                     onClick={() => {
-                      spawnReaction(emoji, "Erick (Você)");
+                      const localSender =
+                        displayName.trim() ||
+                        (isCreatorRole ? "Organizador" : "Participante");
+                      spawnReaction(emoji, localSender);
                       webrtcEngineRef.current?.broadcast({
                         type: "REACTION",
                         emoji,
-                        senderName: "Erick",
+                        senderName: localSender,
                       });
                     }}
                     className="text-xl hover:scale-125 transition-transform cursor-pointer px-1"
@@ -1977,37 +2267,23 @@ export function MeetingRoomView({
                     if (!recordingSession) handleStartUnlimitedRecording();
                     else handleStopAndDownloadRecording();
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-[#81c995] cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Disc className="w-4 h-4" />
+                  <Disc className="w-4 h-4 text-[#ea4335]" />
                   <span>
-                    {recordingSession
-                      ? "Parar e baixar gravação (.webm)"
-                      : "Gravar reunião sem limite de 1h (.webm)"}
+                    {recordingSession ? "Parar gravação" : "Gravar reunião"}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowMoreMenu(false);
-                    setElapsedSeconds((s) => s + 3600);
-                    showToast("Cronômetro avançado em +1 hora (Sem limite!)");
+                    handleCopyRoomLink();
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Clock className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>Avançar +1 Hora no Cronômetro (Teste ∞)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    handleAddSimulatedParticipant();
-                  }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>Simular entrada de novo participante</span>
+                  <Copy className="w-4 h-4 text-[#a8c7fa]" />
+                  <span>Copiar link da reunião</span>
                 </button>
                 <button
                   type="button"
@@ -2029,7 +2305,7 @@ export function MeetingRoomView({
                   className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
                 >
                   <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>Baixar Ata e Transcrição em Markdown</span>
+                  <span>Baixar resumo da reunião</span>
                 </button>
               </div>
             )}
@@ -2069,8 +2345,8 @@ export function MeetingRoomView({
             onClick={() =>
               setActiveDrawer((d) => (d === "activities" ? null : "activities"))
             }
-            title="Atividades e Cofre de Gravações Ilimitadas"
-            aria-label="Abrir cofre de gravações ilimitadas"
+            title="Atividades e Gravações"
+            aria-label="Abrir gravações"
             className={`p-2 rounded-full transition-colors cursor-pointer ${
               activeDrawer === "activities"
                 ? "bg-[#a8c7fa] text-[#041e49]"
@@ -2124,7 +2400,7 @@ export function MeetingRoomView({
                 { key: "Alt + V", action: "Ativar / Desativar Câmera" },
                 {
                   key: "Alt + R",
-                  action: "Iniciar / Parar Gravação Ilimitada (REC ∞)",
+                  action: "Iniciar / Parar Gravação",
                 },
                 {
                   key: "Alt + C",
