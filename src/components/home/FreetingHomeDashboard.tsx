@@ -61,6 +61,7 @@ import {
   loadLgpdConsent,
   saveLgpdConsent,
 } from "@/domain/lgpdCompliance";
+import { validateAndSanitizeMeetingInput } from "@/domain/securityGuard";
 import { FreetingEmptyIllustration } from "./FreetingEmptyIllustration";
 import { MeetingRoomView } from "../room/MeetingRoomView";
 
@@ -194,11 +195,21 @@ export function FreetingHomeDashboard() {
     try {
       const raw = localStorage.getItem(STORAGE_MEETINGS_KEY);
       if (raw) {
-        localItems = JSON.parse(raw);
-        setMeetings(localItems);
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          localItems = parsed
+            .slice(0, 200)
+            .map((item) =>
+              validateAndSanitizeMeetingInput(item, generateRoomCode())
+            )
+            .filter(
+              (item): item is NonNullable<typeof item> => item !== null
+            );
+          setMeetings(localItems);
+        }
       }
     } catch {
-      // ignore
+      // ignore corrupted storage
     }
 
     try {

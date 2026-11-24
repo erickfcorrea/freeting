@@ -1,5 +1,10 @@
 import type Peer from "peerjs";
 import type { DataConnection, MediaConnection } from "peerjs";
+import {
+  SlidingWindowRateLimiter,
+  isPrototypeSafeObject,
+  sanitizeSafeText,
+} from "@/domain/securityGuard";
 
 export interface RoomParticipant {
   id: string;
@@ -67,6 +72,10 @@ export type RoomSignalPayload =
   | {
       type: "ROOM_LOCK_STATE";
       locked: boolean;
+    }
+  | {
+      type: "ROOM_LOCKED_REJECT";
+      reason: string;
     }
   | {
       type: "HOST_MUTE_ALL";
@@ -161,6 +170,8 @@ export class FreetingWebRtcRoomEngine {
     Omit<RoomParticipant, "stream" | "isLocal">
   >();
   private roomLocked = false;
+  private ipRelayPrivacyMode = false;
+  private peerRateLimiter = new SlidingWindowRateLimiter(45, 2000);
 
   // Transport 1: BroadcastChannel (Same-browser tabs)
   private channel: BroadcastChannel | null = null;
@@ -308,9 +319,11 @@ export class FreetingWebRtcRoomEngine {
   public connect(
     localParticipant: Omit<RoomParticipant, "stream" | "isLocal">,
     stream: MediaStream | null,
-    preferHostRole = true
+    preferHostRole = true,
+    ipRelayPrivacyMode = false
   ): void {
     this.isDisconnecting = false;
+    this.ipRelayPrivacyMode = ipRelayPrivacyMode;
     this.localParticipantMeta = { ...localParticipant };
     this.localStream = stream;
     this.knownRoster.set(this.localId, this.localParticipantMeta);
@@ -324,12 +337,12 @@ export class FreetingWebRtcRoomEngine {
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
 
     this.channel = new BroadcastChannel(`freeting_room_${this.roomCode}`);
-    this.channel.onmessage = async (event: MessageEvent<RoomSignalPayload>) => {
+    this.channel.onmessage = async (event: MessageEvent<unknown>) => {
       if (this.isDisconnecting) return;
-      const data = event.data;
-      if (!data) return;
+      const sanitized = this.sanitizeIncomingSignal(event.data);
+      if (!sanitized) return;
 
-      await this.handleIncomingSignal(data, "broadcast");
+      await this.handleIncomingSignal(sanitized, "broadcast");
     };
 
     if (this.localParticipantMeta) {
@@ -357,6 +370,9 @@ export class FreetingWebRtcRoomEngine {
         config: {
           iceServers: RTC_ICE_SERVERS,
           iceCandidatePoolSize: 4,
+          ...(this.ipRelayPrivacyMode
+            ? { iceTransportPolicy: "relay" as RTCIceTransportPolicy }
+            : {}),
         },
       });
 
@@ -429,6 +445,16 @@ export class FreetingWebRtcRoomEngine {
         if (this.isDisconnecting) {
           call.close();
           return;
+        }
+        // Anti-Zoombombing: reject media calls from unknown peers while room is locked by Host
+        if (this.isActingHost && this.roomLocked) {
+          const isAlreadyInRoom = Array.from(this.knownRoster.values()).some(
+            (p) => p.peerJsId === call.peer
+          );
+          if (!isAlreadyInRoom) {
+            call.close();
+            return;
+          }
         }
         const answerStream = this.buildUnifiedOutboundStream();
         call.answer(answerStream);
@@ -527,6 +553,32 @@ export class FreetingWebRtcRoomEngine {
         conn.close();
         return;
       }
+
+      // Anti-Zoombombing: enforce room lock on newly arriving PeerJS connections
+      if (this.isActingHost && this.roomLocked) {
+        const isKnownPeer = Array.from(this.knownRoster.values()).some(
+          (p) => p.peerJsId === conn.peer
+        );
+        if (!isKnownPeer) {
+          try {
+            conn.send({
+              type: "ROOM_LOCKED_REJECT",
+              reason: "Esta sala está trancada pelo organizador.",
+            } satisfies RoomSignalPayload);
+          } catch {
+            // ignore
+          }
+          setTimeout(() => {
+            try {
+              conn.close();
+            } catch {
+              // ignore
+            }
+          }, 250);
+          return;
+        }
+      }
+
       this.dataConnections.set(conn.peer, conn);
 
       if (this.localParticipantMeta) {
@@ -552,9 +604,29 @@ export class FreetingWebRtcRoomEngine {
     });
 
     conn.on("data", async (raw: unknown) => {
-      if (this.isDisconnecting || !raw || typeof raw !== "object") return;
-      const payload = raw as RoomSignalPayload;
-      await this.handleIncomingSignal(payload, "peerjs", conn.peer);
+      if (this.isDisconnecting || !isPrototypeSafeObject(raw)) return;
+
+      // Anti-DoS Rate Limiter & DataChannel Backpressure Guard
+      if (!this.peerRateLimiter.allow(conn.peer)) {
+        try {
+          conn.close();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      if (conn.dataChannel && conn.dataChannel.bufferedAmount > 524_288) {
+        try {
+          conn.close();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      const sanitized = this.sanitizeIncomingSignal(raw);
+      if (!sanitized) return;
+      await this.handleIncomingSignal(sanitized, "peerjs", conn.peer);
     });
 
     conn.on("close", () => {
@@ -806,6 +878,215 @@ export class FreetingWebRtcRoomEngine {
     );
   }
 
+  /**
+   * Valida esquema, tamanhos máximos e caracteres de todo pacote recebido via P2P DataChannel / BroadcastChannel,
+   * bloqueando payloads malformados, Prototype Pollution, XSS e pacotes gigantes (OWASP Input Validation).
+   */
+  private sanitizeIncomingSignal(raw: unknown): RoomSignalPayload | null {
+    if (!isPrototypeSafeObject(raw) || typeof raw.type !== "string") {
+      return null;
+    }
+
+    switch (raw.type) {
+      case "PEER_ANNOUNCE": {
+        if (!isPrototypeSafeObject(raw.participant)) return null;
+        const p = raw.participant;
+        const id = sanitizeSafeText(p.id, 64);
+        const name = sanitizeSafeText(p.name, 60);
+        if (!id || !name) return null;
+        return {
+          type: "PEER_ANNOUNCE",
+          isReply: Boolean(raw.isReply),
+          participant: {
+            id,
+            peerJsId: p.peerJsId ? sanitizeSafeText(p.peerJsId, 96) : undefined,
+            name,
+            role: p.role === "HOST" ? "HOST" : "PARTICIPANT",
+            isSimulated: Boolean(p.isSimulated),
+            isMuted: Boolean(p.isMuted),
+            isCameraOff: Boolean(p.isCameraOff),
+            isScreenSharing: Boolean(p.isScreenSharing),
+            isHandRaised: Boolean(p.isHandRaised),
+            isSpeaking: Boolean(p.isSpeaking),
+            avatarColor: /^#[0-9a-fA-F]{6}$/.test(String(p.avatarColor || ""))
+              ? String(p.avatarColor)
+              : "#0b57d0",
+            joinedAtIso:
+              sanitizeSafeText(p.joinedAtIso, 40) || new Date().toISOString(),
+          },
+        };
+      }
+      case "ROSTER_SYNC": {
+        if (!Array.isArray(raw.participants) || raw.participants.length > 100) {
+          return null;
+        }
+        const sanitizedList: Array<Omit<RoomParticipant, "stream" | "isLocal">> =
+          [];
+        for (const item of raw.participants) {
+          const wrapped = this.sanitizeIncomingSignal({
+            type: "PEER_ANNOUNCE",
+            participant: item,
+          });
+          if (wrapped && wrapped.type === "PEER_ANNOUNCE") {
+            sanitizedList.push(wrapped.participant);
+          }
+        }
+        return {
+          type: "ROSTER_SYNC",
+          participants: sanitizedList,
+          roomLocked:
+            typeof raw.roomLocked === "boolean" ? raw.roomLocked : undefined,
+        };
+      }
+      case "PEER_STATE_UPDATE": {
+        const pid = sanitizeSafeText(raw.participantId, 64);
+        if (!pid || !isPrototypeSafeObject(raw.patch)) return null;
+        const patch: Partial<Omit<RoomParticipant, "stream" | "isLocal">> = {};
+        if (typeof raw.patch.isMuted === "boolean")
+          patch.isMuted = raw.patch.isMuted;
+        if (typeof raw.patch.isCameraOff === "boolean")
+          patch.isCameraOff = raw.patch.isCameraOff;
+        if (typeof raw.patch.isScreenSharing === "boolean")
+          patch.isScreenSharing = raw.patch.isScreenSharing;
+        if (typeof raw.patch.isHandRaised === "boolean")
+          patch.isHandRaised = raw.patch.isHandRaised;
+        if (typeof raw.patch.isSpeaking === "boolean")
+          patch.isSpeaking = raw.patch.isSpeaking;
+        if (typeof raw.patch.name === "string")
+          patch.name = sanitizeSafeText(raw.patch.name, 60);
+        return { type: "PEER_STATE_UPDATE", participantId: pid, patch };
+      }
+      case "MEDIA_SYNC": {
+        const pid = sanitizeSafeText(raw.participantId, 64);
+        if (!pid) return null;
+        return {
+          type: "MEDIA_SYNC",
+          participantId: pid,
+          hasAudio: Boolean(raw.hasAudio),
+          hasVideo: Boolean(raw.hasVideo),
+        };
+      }
+      case "ROOM_LOCK_STATE":
+        return { type: "ROOM_LOCK_STATE", locked: Boolean(raw.locked) };
+      case "ROOM_LOCKED_REJECT":
+        return {
+          type: "ROOM_LOCKED_REJECT",
+          reason:
+            sanitizeSafeText(raw.reason, 160) ||
+            "Sala trancada pelo organizador.",
+        };
+      case "HOST_MUTE_ALL":
+        return {
+          type: "HOST_MUTE_ALL",
+          requestedBy: sanitizeSafeText(raw.requestedBy, 60) || "Organizador",
+        };
+      case "HOST_MUTE_PEER": {
+        const targetId = sanitizeSafeText(raw.targetParticipantId, 64);
+        if (!targetId) return null;
+        return {
+          type: "HOST_MUTE_PEER",
+          targetParticipantId: targetId,
+          requestedBy: sanitizeSafeText(raw.requestedBy, 60) || "Organizador",
+        };
+      }
+      case "PEER_LEAVE": {
+        const pid = sanitizeSafeText(raw.participantId, 64);
+        return pid ? { type: "PEER_LEAVE", participantId: pid } : null;
+      }
+      case "CHAT_MESSAGE": {
+        if (!isPrototypeSafeObject(raw.message)) return null;
+        const m = raw.message;
+        const id = sanitizeSafeText(m.id, 64);
+        const senderId = sanitizeSafeText(m.senderId, 64);
+        const senderName = sanitizeSafeText(m.senderName, 60);
+        const text = sanitizeSafeText(m.text, 2000);
+        if (!id || !senderId || !senderName || !text) return null;
+        return {
+          type: "CHAT_MESSAGE",
+          message: {
+            id,
+            senderId,
+            senderName,
+            text,
+            timestamp: sanitizeSafeText(m.timestamp, 16) || "",
+          },
+        };
+      }
+      case "REACTION": {
+        const emoji = sanitizeSafeText(raw.emoji, 12);
+        const allowedEmojis = new Set(["👍", "❤️", "🎉", "👏", "😂", "😮"]);
+        if (!allowedEmojis.has(emoji)) return null;
+        return {
+          type: "REACTION",
+          emoji,
+          senderName: sanitizeSafeText(raw.senderName, 60) || "Participante",
+        };
+      }
+      case "CAPTION": {
+        if (!isPrototypeSafeObject(raw.entry)) return null;
+        const c = raw.entry;
+        const id = sanitizeSafeText(c.id, 64);
+        const speakerName = sanitizeSafeText(c.speakerName, 60);
+        const text = sanitizeSafeText(c.text, 500);
+        if (!id || !speakerName || !text) return null;
+        return {
+          type: "CAPTION",
+          entry: {
+            id,
+            speakerName,
+            text,
+            timestamp: sanitizeSafeText(c.timestamp, 16) || "",
+          },
+        };
+      }
+      case "WEBRTC_SDP": {
+        const fromId = sanitizeSafeText(raw.fromId, 64);
+        const toId = sanitizeSafeText(raw.toId, 64);
+        if (!fromId || !toId || !isPrototypeSafeObject(raw.description))
+          return null;
+        const sdpType = raw.description.type;
+        if (sdpType !== "offer" && sdpType !== "answer") return null;
+        const sdp =
+          typeof raw.description.sdp === "string"
+            ? raw.description.sdp.slice(0, 65_536)
+            : "";
+        return {
+          type: "WEBRTC_SDP",
+          fromId,
+          toId,
+          description: { type: sdpType, sdp },
+        };
+      }
+      case "WEBRTC_ICE": {
+        const fromId = sanitizeSafeText(raw.fromId, 64);
+        const toId = sanitizeSafeText(raw.toId, 64);
+        if (!fromId || !toId || !isPrototypeSafeObject(raw.candidate))
+          return null;
+        return {
+          type: "WEBRTC_ICE",
+          fromId,
+          toId,
+          candidate: raw.candidate as RTCIceCandidateInit,
+        };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Verifica autenticidade de comandos privilegiados do Organizador (CWE-290 Anti-Spoofing).
+   */
+  private isVerifiedHostSignal(
+    source: "broadcast" | "peerjs",
+    fromPeerJsId?: string
+  ): boolean {
+    if (source === "peerjs") {
+      return fromPeerJsId === getDeterministicHostPeerId(this.roomCode);
+    }
+    return true;
+  }
+
   private async handleIncomingSignal(
     data: RoomSignalPayload,
     source: "broadcast" | "peerjs",
@@ -869,6 +1150,7 @@ export class FreetingWebRtcRoomEngine {
     }
 
     if (data.type === "ROSTER_SYNC") {
+      if (!this.isVerifiedHostSignal(source, fromPeerJsId)) return;
       if (typeof data.roomLocked === "boolean") {
         this.roomLocked = data.roomLocked;
         this.onSignalCallback({
@@ -902,9 +1184,27 @@ export class FreetingWebRtcRoomEngine {
       return;
     }
 
+    if (
+      data.type === "ROOM_LOCK_STATE" ||
+      data.type === "ROOM_LOCKED_REJECT" ||
+      data.type === "HOST_MUTE_ALL" ||
+      data.type === "HOST_MUTE_PEER"
+    ) {
+      if (!this.isVerifiedHostSignal(source, fromPeerJsId)) return;
+    }
+
     if (data.type === "PEER_STATE_UPDATE") {
       const existing = this.knownRoster.get(data.participantId);
       if (existing) {
+        // Prevent a non-Host guest from spoofing state updates of other participants (IDOR defense)
+        if (
+          source === "peerjs" &&
+          !this.isVerifiedHostSignal(source, fromPeerJsId) &&
+          existing.peerJsId &&
+          existing.peerJsId !== fromPeerJsId
+        ) {
+          return;
+        }
         this.knownRoster.set(data.participantId, {
           ...existing,
           ...data.patch,
@@ -913,6 +1213,15 @@ export class FreetingWebRtcRoomEngine {
     } else if (data.type === "ROOM_LOCK_STATE") {
       this.roomLocked = data.locked;
     } else if (data.type === "PEER_LEAVE") {
+      const target = this.knownRoster.get(data.participantId);
+      if (
+        source === "peerjs" &&
+        !this.isVerifiedHostSignal(source, fromPeerJsId) &&
+        target?.peerJsId &&
+        target.peerJsId !== fromPeerJsId
+      ) {
+        return;
+      }
       this.knownRoster.delete(data.participantId);
     }
 
