@@ -40,6 +40,7 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
 | :--- | :--- |
 | `Alt + M` | Ativar / Desativar Microfone |
 | `Alt + V` | Ativar / Desativar Câmera |
+| `Alt + S` | Compartilhar / Parar Tela (Modo Anti-Espelho Infinito) |
 | `Alt + R` | Iniciar / Parar Gravação |
 | `Alt + C` | Alternar Legendas ao Vivo em Português (`CC`) |
 | `Alt + H` | Levantar / Abaixar a Mão (`✋`) |
