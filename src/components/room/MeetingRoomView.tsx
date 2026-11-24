@@ -189,8 +189,8 @@ export function MeetingRoomView({
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
-  const [lgpdAutoMask, setLgpdAutoMask] = useState<boolean>(() =>
-    loadLgpdConsent().autoMaskPersonalData
+  const [lgpdAutoMask, setLgpdAutoMask] = useState<boolean>(
+    () => loadLgpdConsent().autoMaskPersonalData,
   );
   const [isCallEnded, setIsCallEnded] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(false);
@@ -225,7 +225,7 @@ export function MeetingRoomView({
   const webrtcEngineRef = useRef<FreetingWebRtcRoomEngine | null>(null);
   const recorderRef = useRef<LiveUnlimitedMediaRecorder | null>(null);
   const localPeerIdRef = useRef<string>(
-    `peer_${Math.random().toString(36).slice(2, 9)}`
+    `peer_${Math.random().toString(36).slice(2, 9)}`,
   );
 
   // Participants, Chat, Captions, Reactions, AI
@@ -265,7 +265,7 @@ export function MeetingRoomView({
     useState<UnlimitedRecordingSession | null>(null);
   const [recordingTickMs, setRecordingTickMs] = useState<number>(Date.now());
   const [savedRecordings, setSavedRecordings] = useState<StoredRecordingMeta[]>(
-    []
+    [],
   );
 
   const showToast = useCallback((msg: string) => {
@@ -295,7 +295,7 @@ export function MeetingRoomView({
     const updateClock = () => {
       const now = new Date();
       setClockText(
-        now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
       );
     };
     updateClock();
@@ -391,8 +391,8 @@ export function MeetingRoomView({
         } else if (payload.type === "PEER_STATE_UPDATE") {
           setParticipants((prev) =>
             prev.map((p) =>
-              p.id === payload.participantId ? { ...p, ...payload.patch } : p
-            )
+              p.id === payload.participantId ? { ...p, ...payload.patch } : p,
+            ),
           );
         } else if (payload.type === "PEER_LEAVE") {
           setParticipants((prev) => {
@@ -418,7 +418,7 @@ export function MeetingRoomView({
       },
       onRemoteStream: (peerId, stream) => {
         setParticipants((prev) =>
-          prev.map((p) => (p.id === peerId ? { ...p, stream } : p))
+          prev.map((p) => (p.id === peerId ? { ...p, stream } : p)),
         );
       },
     });
@@ -474,7 +474,7 @@ export function MeetingRoomView({
         el.play().catch(() => {});
       }
     },
-    [isCameraOff]
+    [isCameraOff],
   );
 
   const bindLobbyVideoRef = useCallback(
@@ -496,7 +496,7 @@ export function MeetingRoomView({
         el.play().catch(() => {});
       }
     },
-    [isScreenSharing]
+    [isScreenSharing],
   );
 
   const spawnReaction = (emoji: string, senderName = "Você") => {
@@ -538,8 +538,8 @@ export function MeetingRoomView({
       });
       setParticipants((prev) =>
         prev.map((p) =>
-          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p
-        )
+          p.isLocal ? { ...p, isMuted: false, isSpeaking: true } : p,
+        ),
       );
     } else {
       localStreamRef.current
@@ -553,8 +553,8 @@ export function MeetingRoomView({
       });
       setParticipants((prev) =>
         prev.map((p) =>
-          p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p
-        )
+          p.isLocal ? { ...p, isMuted: true, isSpeaking: false } : p,
+        ),
       );
     }
   }, [isMuted, showToast]);
@@ -598,7 +598,7 @@ export function MeetingRoomView({
         isCameraOff: false,
       });
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p))
+        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: false } : p)),
       );
 
       if (localVideoElRef.current && videoStream) {
@@ -630,7 +630,7 @@ export function MeetingRoomView({
         isCameraOff: true,
       });
       setParticipants((prev) =>
-        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p))
+        prev.map((p) => (p.isLocal ? { ...p, isCameraOff: true } : p)),
       );
       showToast("Câmera desativada");
     }
@@ -787,7 +787,9 @@ export function MeetingRoomView({
 
       if (typeof window !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRec =
+          (window as any).SpeechRecognition ||
+          (window as any).webkitSpeechRecognition;
         if (SpeechRec) {
           try {
             const recognition = new SpeechRec();
@@ -801,7 +803,7 @@ export function MeetingRoomView({
                 const rawSpoken = String(lastResult[0].transcript).trim();
                 const spokenText = maskPersonalDataInText(
                   rawSpoken,
-                  lgpdAutoMask
+                  lgpdAutoMask,
                 );
                 if (spokenText) {
                   const capEntry: RoomCaptionEntry = {
@@ -1056,7 +1058,7 @@ export function MeetingRoomView({
   const activeRecDurationSec = recordingSession
     ? Math.floor(
         getEffectiveRecordingDurationMs(recordingSession, recordingTickMs) /
-          1000
+          1000,
       )
     : 0;
 
@@ -1259,7 +1261,9 @@ export function MeetingRoomView({
       {/* TOP BAR */}
       <header className="h-14 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-[#e3e3e3]">{clockText}</span>
+          <span className="text-sm font-medium text-[#e3e3e3]">
+            {clockText}
+          </span>
           <span className="text-[#5f6368]">|</span>
           <span className="text-sm font-medium text-[#e3e3e3] tracking-wide">
             {roomCode}
@@ -1317,7 +1321,7 @@ export function MeetingRoomView({
               showToast(
                 !highContrastMode
                   ? "Alto contraste ativado"
-                  : "Alto contraste desativado"
+                  : "Alto contraste desativado",
               );
             }}
             title="Alternar Modo Alto Contraste"
@@ -1406,8 +1410,8 @@ export function MeetingRoomView({
             (layoutMode === "spotlight" || participants.length === 1
               ? "grid-cols-1"
               : participants.length === 2
-              ? "grid-cols-1 md:grid-cols-2"
-              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")
+                ? "grid-cols-1 md:grid-cols-2"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")
           }`}
         >
           {(layoutMode === "spotlight" ? [participants[0]] : participants).map(
@@ -1789,7 +1793,7 @@ export function MeetingRoomView({
                       onClick={() =>
                         handleSendAiPrompt(
                           undefined,
-                          "Resuma a discussão até agora"
+                          "Resuma a discussão até agora",
                         )
                       }
                       className="bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] px-3 py-1.5 rounded-full text-[11px] cursor-pointer"
@@ -1906,7 +1910,7 @@ export function MeetingRoomView({
                             onClick={async () => {
                               const blob = await assembleRecordingBlobFromVault(
                                 rec.sessionId,
-                                rec.mimeType
+                                rec.mimeType,
                               );
                               if (blob) {
                                 const url = URL.createObjectURL(blob);
@@ -1923,12 +1927,12 @@ export function MeetingRoomView({
                             onClick={async () => {
                               const blob = await assembleRecordingBlobFromVault(
                                 rec.sessionId,
-                                rec.mimeType
+                                rec.mimeType,
                               );
                               if (blob) {
                                 triggerBlobDownload(
                                   blob,
-                                  `freeting-${rec.roomCode}-${rec.sessionId}.webm`
+                                  `freeting-${rec.roomCode}-${rec.sessionId}.webm`,
                                 );
                               }
                             }}
@@ -1962,7 +1966,7 @@ export function MeetingRoomView({
                         showToast(
                           e.target.checked
                             ? "Sala bloqueada para novos visitantes"
-                            : "Sala desbloqueada"
+                            : "Sala desbloqueada",
                         );
                       }}
                       className="w-4 h-4 accent-[#a8c7fa]"
@@ -1988,7 +1992,7 @@ export function MeetingRoomView({
                         showToast(
                           e.target.checked
                             ? "Mascaramento automático LGPD ativado"
-                            : "Mascaramento automático LGPD desativado"
+                            : "Mascaramento automático LGPD desativado",
                         );
                       }}
                       className="w-4 h-4 accent-[#a8c7fa]"
@@ -2230,9 +2234,7 @@ export function MeetingRoomView({
                 isHandRaised: next,
               });
               setParticipants((prev) =>
-                prev.map((p) =>
-                  p.isLocal ? { ...p, isHandRaised: next } : p
-                )
+                prev.map((p) => (p.isLocal ? { ...p, isHandRaised: next } : p)),
               );
             }}
             title="Levantar a mão (Alt+H)"

@@ -129,6 +129,7 @@ export class FreetingWebRtcRoomEngine {
   private peerInstance: Peer | null = null;
   private dataConnections = new Map<string, DataConnection>();
   private mediaConnections = new Map<string, MediaConnection>();
+  private reconnectTimer: ReturnType<typeof setInterval> | null = null;
   private isActingHost = false;
 
   private localStream: MediaStream | null = null;
@@ -285,9 +286,20 @@ export class FreetingWebRtcRoomEngine {
           this.onRoleResolvedCallback?.(resolvedRole);
         }
 
-        // If we are a Guest, connect immediately to the Host Peer ID!
+        // If we are a Guest, connect immediately to the Host Peer ID and maintain auto-reconnect heartbeat!
         if (!this.isActingHost) {
           this.connectToRemotePeerJs(hostPeerId);
+          if (this.reconnectTimer) clearInterval(this.reconnectTimer);
+          this.reconnectTimer = setInterval(() => {
+            if (
+              !this.isDisconnecting &&
+              !this.isActingHost &&
+              this.peerInstance &&
+              !this.dataConnections.has(hostPeerId)
+            ) {
+              this.connectToRemotePeerJs(hostPeerId);
+            }
+          }, 3500);
         }
       });
 
@@ -764,6 +776,10 @@ export class FreetingWebRtcRoomEngine {
 
   public disconnect(): void {
     this.isDisconnecting = true;
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.broadcast({ type: "PEER_LEAVE", participantId: this.localId });
 
     this.localPeerConnections.forEach((pc) => {
