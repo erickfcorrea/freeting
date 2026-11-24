@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const cspDirectives = [
   "default-src 'self'",
@@ -19,6 +20,7 @@ const cspDirectives = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  outputFileTracingRoot: path.resolve(__dirname),
   async headers() {
     return [
       {
