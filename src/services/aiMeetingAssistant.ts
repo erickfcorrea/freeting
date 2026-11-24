@@ -1,4 +1,5 @@
 import { RoomCaptionEntry, RoomChatMessage } from "./webrtcRoomEngine";
+import { maskPersonalDataInText } from "@/domain/lgpdCompliance";
 
 export interface AiAssistantResponse {
   title: string;
@@ -14,6 +15,7 @@ export function generateAiMeetingResponse(options: {
   participants: string[];
   captions: RoomCaptionEntry[];
   chatMessages: RoomChatMessage[];
+  lgpdMaskEnabled?: boolean;
 }): AiAssistantResponse {
   const {
     prompt,
@@ -22,33 +24,45 @@ export function generateAiMeetingResponse(options: {
     participants,
     captions,
     chatMessages,
+    lgpdMaskEnabled = true,
   } = options;
-  const q = prompt.trim().toLowerCase();
+  const safePrompt = maskPersonalDataInText(prompt.trim(), lgpdMaskEnabled);
+  const q = safePrompt.toLowerCase();
 
   const recentSpeech = captions
-    .slice(-8)
-    .map((c) => `• ${c.speakerName}: "${c.text}"`)
+    .slice(-10)
+    .map(
+      (c) =>
+        `• ${c.speakerName}: "${maskPersonalDataInText(
+          c.text,
+          lgpdMaskEnabled
+        )}"`
+    )
     .join("\n");
   const recentChat = chatMessages
-    .slice(-5)
-    .map((m) => `• ${m.senderName}: ${m.text}`)
+    .filter((m) => m.senderId !== "system")
+    .slice(-6)
+    .map(
+      (m) =>
+        `• ${m.senderName}: ${maskPersonalDataInText(m.text, lgpdMaskEnabled)}`
+    )
     .join("\n");
 
   const defaultActionItems = [
-    `Compartilhar a gravação ilimitada (.webm) da sala ${roomCode} com os ${participants.length} participante(s).`,
-    "Revisar os pontos capturados na transcrição ao vivo em português.",
-    "Exportar a ata consolidada do FREETING sem cortes de 60 minutos.",
+    `Disponibilizar o resumo da sala ${roomCode} para os ${participants.length} participante(s).`,
+    "Validar os encaminhamentos registrados nas legendas e no chat.",
+    "Baixar a ata consolidada em formato Markdown.",
   ];
 
   if (q.includes("resum") || q.includes("ata") || q.includes("discut")) {
     return {
-      title: `Resumo Inteligente FREETING IA • Sala ${roomCode}`,
+      title: `Resumo Inteligente • Sala ${roomCode}`,
       answer: [
-        `⏱️ Tempo decorrido: ${elapsedFormatted} (Modo Sem Limite ∞ ativo)`,
-        `👥 Participantes ativos (${participants.length}): ${participants.join(", ")}`,
+        `⏱️ Duração em andamento: ${elapsedFormatted}`,
+        `👥 Participantes na sala (${participants.length}): ${participants.join(", ")}`,
         recentSpeech
           ? `\n🎙️ Destaques da Fala:\n${recentSpeech}`
-          : "\n🎙️ Transcrição pronta para capturar falas em tempo real (ative o botão CC para legendas automáticas).",
+          : "\n🎙️ Transcrição pronta para registrar falas em tempo real (ative o botão CC para legendas automáticas).",
         recentChat ? `\n💬 Destaques do Chat:\n${recentChat}` : "",
       ]
         .filter(Boolean)
@@ -62,11 +76,11 @@ export function generateAiMeetingResponse(options: {
   }
 
   return {
-    title: `Assistente FREETING IA (Português) • Sala ${roomCode}`,
-    answer: `Analisei o contexto da reunião (${elapsedFormatted} decorridos, sem limite de 1 hora). Sobre "${prompt}":\n\nA sala conta com ${participants.length} participante(s) (${participants.join(", ")}). ${
+    title: `Assistente IA (Português) • Sala ${roomCode}`,
+    answer: `Contexto atual da reunião (${elapsedFormatted} decorridos). Sobre "${safePrompt}":\n\nA sala conta com ${participants.length} participante(s) (${participants.join(", ")}). ${
       captions.length > 0
         ? `Foram registrados ${captions.length} trechos de fala até o momento.`
-        : "Você pode ativar a Gravação Ilimitada (REC ∞) e as Legendas em Português (CC) na barra inferior a qualquer momento."
+        : "Você pode ativar a Gravação e as Legendas em Português (CC) na barra de controles a qualquer momento."
     }`,
     actionItems: defaultActionItems,
     generatedAt: new Date().toLocaleTimeString("pt-BR", {
@@ -83,14 +97,22 @@ export function exportMeetingMinutesMarkdown(options: {
   captions: RoomCaptionEntry[];
   chatMessages: RoomChatMessage[];
   aiNotes: AiAssistantResponse[];
+  lgpdMaskEnabled?: boolean;
 }): string {
+  const maskEnabled = options.lgpdMaskEnabled ?? true;
+
   const lines: string[] = [
-    `# Ata de Reunião & Transcrição — FREETING (∞ Sem Limites)`,
+    `# Ata de Reunião & Transcrição — FREETING`,
     ``,
     `- **Código da Sala:** \`${options.roomCode}\``,
-    `- **Duração Registrada:** \`${options.elapsedFormatted}\` (Sem limite de 60 minutos)`,
+    `- **Duração Registrada:** \`${options.elapsedFormatted}\``,
     `- **Data/Hora de Exportação:** ${new Date().toLocaleString("pt-BR")}`,
     `- **Participantes (${options.participants.length}):** ${options.participants.join(", ")}`,
+    `- **Proteção LGPD (Lei nº 13.709/2018):** ${
+      maskEnabled
+        ? "Mascaramento automático DLP ativo (CPF, CNPJ, e-mail, telefone e cartões protegidos)"
+        : "Exportação sob controle direto do usuário"
+    }`,
     ``,
     `---`,
     ``,
@@ -99,13 +121,18 @@ export function exportMeetingMinutesMarkdown(options: {
   ];
 
   if (options.aiNotes.length === 0) {
-    lines.push(`_Nenhuma pergunta enviada ao Assistente IA durante a sessão._`, ``);
+    lines.push(
+      `_Nenhuma síntese gerada pelo Assistente IA durante a sessão._`,
+      ``
+    );
   } else {
     options.aiNotes.forEach((note, idx) => {
       lines.push(`### ${idx + 1}. ${note.title} (${note.generatedAt})`);
-      lines.push(note.answer, ``);
+      lines.push(maskPersonalDataInText(note.answer, maskEnabled), ``);
       lines.push(`**Próximos Passos:**`);
-      note.actionItems.forEach((item) => lines.push(`- [ ] ${item}`));
+      note.actionItems.forEach((item) =>
+        lines.push(`- [ ] ${maskPersonalDataInText(item, maskEnabled)}`)
+      );
       lines.push(``);
     });
   }
@@ -116,7 +143,12 @@ export function exportMeetingMinutesMarkdown(options: {
     lines.push(`_Nenhuma legenda capturada._`, ``);
   } else {
     options.captions.forEach((c) => {
-      lines.push(`- **[${c.timestamp}] ${c.speakerName}:** ${c.text}`);
+      lines.push(
+        `- **[${c.timestamp}] ${c.speakerName}:** ${maskPersonalDataInText(
+          c.text,
+          maskEnabled
+        )}`
+      );
     });
     lines.push(``);
   }
@@ -127,7 +159,12 @@ export function exportMeetingMinutesMarkdown(options: {
     lines.push(`_Nenhuma mensagem no chat._`, ``);
   } else {
     options.chatMessages.forEach((m) => {
-      lines.push(`- **[${m.timestamp}] ${m.senderName}:** ${m.text}`);
+      lines.push(
+        `- **[${m.timestamp}] ${m.senderName}:** ${maskPersonalDataInText(
+          m.text,
+          maskEnabled
+        )}`
+      );
     });
     lines.push(``);
   }

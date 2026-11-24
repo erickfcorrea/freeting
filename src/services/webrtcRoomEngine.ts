@@ -68,6 +68,15 @@ export type RoomSignalPayload =
       type: "ROOM_LOCK_STATE";
       locked: boolean;
     }
+  | {
+      type: "HOST_MUTE_ALL";
+      requestedBy: string;
+    }
+  | {
+      type: "HOST_MUTE_PEER";
+      targetParticipantId: string;
+      requestedBy: string;
+    }
   | { type: "PEER_LEAVE"; participantId: string }
   | { type: "CHAT_MESSAGE"; message: RoomChatMessage }
   | { type: "REACTION"; emoji: string; senderName: string }
@@ -708,7 +717,93 @@ export class FreetingWebRtcRoomEngine {
 
     replaceForKind("audio", targetAudio);
     replaceForKind("video", targetVideo);
+    this.applyAdaptivePeerQoS(pc);
     return needsRenegotiation;
+  }
+
+  /**
+   * Dynamically tunes WebRTC RTP sender bitrates, framerates, resolution scaling, and
+   * audio network priority based on active room size and screen-sharing state so rooms
+   * with many participants + screen share remain smooth and voice never drops.
+   */
+  private applyAdaptivePeerQoS(pc: RTCPeerConnection | null | undefined): void {
+    if (!pc || pc.signalingState === "closed" || typeof pc.getSenders !== "function") {
+      return;
+    }
+
+    const totalPeers = Math.max(1, this.knownRoster.size);
+    const isSharingScreen = Boolean(this.localParticipantMeta?.isScreenSharing);
+
+    let maxVideoBitrate = 1_400_000;
+    let maxVideoFramerate = 30;
+    let scaleDown = 1;
+
+    if (isSharingScreen) {
+      // Prioritize crisp text readability at efficient framerate during screen sharing
+      maxVideoBitrate = totalPeers >= 8 ? 1_200_000 : 1_800_000;
+      maxVideoFramerate = 15;
+      scaleDown = 1;
+    } else if (totalPeers >= 10) {
+      maxVideoBitrate = 180_000;
+      maxVideoFramerate = 15;
+      scaleDown = 2.5;
+    } else if (totalPeers >= 6) {
+      maxVideoBitrate = 320_000;
+      maxVideoFramerate = 18;
+      scaleDown = 2;
+    } else if (totalPeers >= 3) {
+      maxVideoBitrate = 650_000;
+      maxVideoFramerate = 24;
+      scaleDown = 1.5;
+    }
+
+    pc.getSenders().forEach((sender) => {
+      const kind = sender.track?.kind;
+      if (!kind || typeof sender.getParameters !== "function") return;
+
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        if (kind === "audio") {
+          params.encodings[0].maxBitrate = 48_000;
+          (
+            params.encodings[0] as RTCRtpEncodingParameters & {
+              priority?: string;
+              networkPriority?: string;
+            }
+          ).priority = "high";
+          (
+            params.encodings[0] as RTCRtpEncodingParameters & {
+              priority?: string;
+              networkPriority?: string;
+            }
+          ).networkPriority = "high";
+        } else if (kind === "video") {
+          if (sender.track && "contentHint" in sender.track) {
+            try {
+              sender.track.contentHint = isSharingScreen ? "detail" : "motion";
+            } catch {
+              // ignore
+            }
+          }
+          params.encodings[0].maxBitrate = maxVideoBitrate;
+          params.encodings[0].maxFramerate = maxVideoFramerate;
+          params.encodings[0].scaleResolutionDownBy = scaleDown;
+        }
+        sender.setParameters(params).catch(() => {});
+      } catch {
+        // ignore browser-specific parameter constraints
+      }
+    });
+  }
+
+  public refreshAllPeersQoS(): void {
+    this.localPeerConnections.forEach((pc) => this.applyAdaptivePeerQoS(pc));
+    this.mediaConnections.forEach((call) =>
+      this.applyAdaptivePeerQoS(call.peerConnection)
+    );
   }
 
   private async handleIncomingSignal(
@@ -831,6 +926,21 @@ export class FreetingWebRtcRoomEngine {
   public setRoomLocked(locked: boolean): void {
     this.roomLocked = locked;
     this.broadcast({ type: "ROOM_LOCK_STATE", locked });
+  }
+
+  public requestMuteAll(requestedBy: string): void {
+    this.broadcast({ type: "HOST_MUTE_ALL", requestedBy });
+  }
+
+  public requestMuteParticipant(
+    targetParticipantId: string,
+    requestedBy: string
+  ): void {
+    this.broadcast({
+      type: "HOST_MUTE_PEER",
+      targetParticipantId,
+      requestedBy,
+    });
   }
 
   public updateLocalParticipantMeta(
