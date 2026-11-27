@@ -26,6 +26,7 @@ O **FREETING** é uma plataforma moderna de videoconferência, chamadas P2P, age
   - **Minimização de Dados (Art. 6º, III)**: Sem coleta de cadastro obrigatório, CPF, telefone ou e-mail.
   - **DLP e Mascaramento Automático (Art. 5º, II e Art. 46)**: Proteção em tempo real que mascara CPFs, e-mails e telefones digitados no chat ou falados na transcrição (`src/domain/lgpdCompliance.ts`).
   - **Direitos do Titular (Art. 18)**: Central de Privacidade integrada com exportação de portabilidade em JSON e eliminação instantânea de todos os dados e gravações locais.
+  - **Segurança & Ocultação de IP (Art. 46 & OWASP)**: Cabeçalhos CSP/HSTS estritos, códigos CSPRNG (`crypto.getRandomValues`) e modo opcional Relay TURN para anonimizar o endereço IP na chamada.
 - **Assistente de IA & Legendas ao Vivo em Português (`CC`)**: Transcrição em tempo real via Web Speech API, geração de resumos durante a chamada e exportação da Ata em Markdown (`.md`).
 - **Experiência Mobile-First & PWA Instalável**:
   - Layout adaptativo `100dvh` com suporte a `safe-area-inset` (iOS/Android), barra inferior ergonômica na zona do polegar, gavetas _Bottom Sheet_ deslizantes, grade retrato 50/50 e compartilhamento nativo via Web Share API (WhatsApp, Telegram, SMS).
