@@ -164,7 +164,7 @@ const LiveHeaderClock = memo(function LiveHeaderClock() {
   }, []);
 
   return (
-    <span className="hidden sm:inline text-sm font-medium text-[#e3e3e3]">
+    <span className="hidden sm:inline font-mono-tabular text-xs font-semibold text-slate-300">
       {text}
     </span>
   );
@@ -195,9 +195,9 @@ const ActiveRecordingPill = memo(function ActiveRecordingPill({
   );
 
   return (
-    <div className="flex items-center gap-1.5 bg-[#3c1917] border border-[#f28b82]/50 text-[#f28b82] rounded-full px-2.5 sm:px-3.5 py-1 text-[11px] sm:text-xs font-medium shrink-0">
-      <span className="w-2 h-2 rounded-full bg-[#ea4335] animate-pulse" />
-      <span>{formatUnlimitedDuration(durationSec, false)}</span>
+    <div className="flex items-center gap-1.5 bg-rose-500/15 ring-1 ring-rose-400/40 text-rose-200 rounded-xl px-2.5 sm:px-3 py-1 font-mono-tabular text-[11px] sm:text-xs font-semibold shrink-0">
+      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+      <span>REC {formatUnlimitedDuration(durationSec, false)}</span>
       <button
         type="button"
         onClick={onPauseResume}
@@ -402,48 +402,53 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
 
   return (
     <div
-      className={`rounded-2xl relative flex items-center justify-center overflow-hidden shadow-inner group ${
+      className={`rounded-[20px] relative flex items-center justify-center overflow-hidden group transition-shadow ${
         isFilmstripTile
           ? "w-40 lg:w-full h-full shrink-0"
           : "w-full h-full min-h-0"
       } ${
         highContrastMode
-          ? "bg-[#0a192f] border-2 border-yellow-400"
+          ? "bg-black border-2 border-yellow-400"
           : participant.isSpeaking && !participant.isMuted
-          ? "bg-[#1b3a6b] border-2 border-[#81c995]"
+          ? "bg-[#101520] ring-2 ring-emerald-400 shadow-[0_0_30px_-8px_rgba(16,185,129,0.5)]"
           : isPinned
-          ? "bg-[#1b3a6b] border-2 border-[#a8c7fa]"
-          : "bg-[#1b3a6b] border border-white/10"
+          ? "bg-[#101520] ring-2 ring-amber-400"
+          : "bg-[#101520] ring-1 ring-white/[0.08]"
       }`}
     >
       {/* Top-Right Mic Status / Equalizer + Flip Camera on Local Tile */}
-      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 flex items-center gap-1.5">
+      <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 z-10 flex items-center gap-1.5">
         {participant.isLocal && !isCameraOffLocal && !isVirtualCamera && (
           <button
             type="button"
             onClick={onFlipCamera}
             title="Inverter câmera"
             aria-label="Inverter câmera"
-            className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-black/65 hover:bg-black/85 text-white ring-1 ring-white/15 flex items-center justify-center cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         )}
 
         <div
-          className={`w-7 h-7 rounded-full flex items-center justify-center ${
-            participant.isMuted
-              ? "bg-[#172b4d]/85 text-[#8ab4f8]"
-              : "bg-[#137333]/90 text-white"
+          title={participant.isMuted ? "Microfone silenciado" : "Microfone ativo"}
+          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1 backdrop-blur-md ${
+            highContrastMode
+              ? participant.isMuted
+                ? "bg-black border border-yellow-400 text-yellow-300"
+                : "bg-yellow-400 text-black"
+              : participant.isMuted
+              ? "bg-rose-950/85 text-rose-300 ring-1 ring-rose-400/35"
+              : "bg-emerald-500/90 text-slate-950 font-bold"
           }`}
         >
           {participant.isMuted ? (
             <MicOff className="w-3.5 h-3.5" />
           ) : (
-            <div className="flex items-end gap-0.5 h-3">
-              <span className="w-0.5 h-full bg-white rounded-full animate-eq-1" />
-              <span className="w-0.5 h-full bg-white rounded-full animate-eq-2" />
-              <span className="w-0.5 h-full bg-white rounded-full animate-eq-3" />
+            <div className="flex items-end gap-0.5 h-3 px-0.5">
+              <span className="w-0.5 h-full bg-current rounded-full animate-eq-1" />
+              <span className="w-0.5 h-full bg-current rounded-full animate-eq-2" />
+              <span className="w-0.5 h-full bg-current rounded-full animate-eq-3" />
             </div>
           )}
         </div>
@@ -451,7 +456,7 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
 
       {/* Raised Hand Badge */}
       {participant.isHandRaised && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 bg-[#fbbc04] text-[#1f1f1f] px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 shadow-md">
+        <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 z-10 bg-amber-400 text-slate-950 px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-md">
           <Hand className="w-3 h-3" />
           <span className="hidden sm:inline">Mão levantada</span>
         </div>
@@ -474,21 +479,21 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
           fitMode={participant.isScreenSharing ? "contain" : "cover"}
         />
       ) : (
-        <div className="relative flex flex-col items-center justify-center gap-1.5">
+        <div className="relative flex flex-col items-center justify-center gap-2">
           <div
             style={{ backgroundColor: participant.avatarColor }}
             className={`${
               isFilmstripTile
-                ? "w-11 h-11 text-base"
-                : "w-16 h-16 sm:w-22 sm:h-22 text-2xl sm:text-3xl"
-            } rounded-full flex items-center justify-center font-semibold text-white shadow-lg transition-transform ${
-              !participant.isMuted ? "ring-4 ring-[#8ab4f8]/70 scale-105" : ""
+                ? "w-11 h-11 text-base rounded-2xl"
+                : "w-16 h-16 sm:w-22 sm:h-22 text-2xl sm:text-3xl rounded-3xl"
+            } font-display flex items-center justify-center font-bold text-white shadow-lg transition-transform ${
+              !participant.isMuted ? "ring-4 ring-emerald-400/60 scale-105" : "ring-1 ring-white/15"
             }`}
           >
             {participant.name.charAt(0).toUpperCase()}
           </div>
           {!participant.isLocal && lowDataMode && !participant.isCameraOff && (
-            <span className="text-[10px] bg-black/50 text-[#a8c7fa] px-2 py-0.5 rounded-full">
+            <span className="text-[10px] bg-black/65 text-emerald-300 ring-1 ring-emerald-400/25 px-2.5 py-0.5 rounded-lg">
               Vídeo pausado (Economia)
             </span>
           )}
@@ -497,13 +502,13 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
 
       {/* Hover / Tap Pin & Fullscreen Pill */}
       <div className="hidden sm:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <div className="pointer-events-auto bg-[#202124]/85 backdrop-blur-xs text-[#e3e3e3] rounded-full px-3 py-1.5 flex items-center gap-3 shadow-md">
+        <div className="pointer-events-auto bg-[#080A0F]/85 backdrop-blur-md text-slate-200 ring-1 ring-white/15 rounded-xl px-3 py-1.5 flex items-center gap-3 shadow-xl">
           <button
             type="button"
             onClick={onToggleFullscreen}
             title="Tela cheia"
             aria-label="Alternar tela cheia"
-            className="hover:text-white cursor-pointer"
+            className="hover:text-emerald-300 cursor-pointer"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
@@ -512,8 +517,8 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
             onClick={() => onTogglePin(participant.id)}
             title={isPinned ? "Desafixar destaque" : "Fixar em destaque"}
             aria-label={isPinned ? "Desafixar destaque" : "Fixar em destaque"}
-            className={`hover:text-white cursor-pointer ${
-              isPinned ? "text-[#a8c7fa]" : ""
+            className={`hover:text-amber-300 cursor-pointer ${
+              isPinned ? "text-amber-400" : ""
             }`}
           >
             <Pin className="w-3.5 h-3.5" />
@@ -522,12 +527,12 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
       </div>
 
       {/* Bottom-left Participant Nameplate */}
-      <div className="absolute bottom-2 left-2 sm:bottom-2.5 sm:left-3 max-w-[86%] bg-black/65 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium text-white flex items-center gap-1.5 truncate">
-        {isPinned && <Pin className="w-3 h-3 text-[#a8c7fa] shrink-0" />}
+      <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 max-w-[86%] bg-black/70 backdrop-blur-md ring-1 ring-white/10 px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-semibold text-white flex items-center gap-1.5 truncate">
+        {isPinned && <Pin className="w-3 h-3 text-amber-400 shrink-0" />}
         <span className="truncate">{participant.name}</span>
         {!isFilmstripTile && (
-          <span className="hidden sm:inline text-[10px] text-[#a8c7fa] shrink-0">
-            • {participant.role === "HOST" ? "Organizador" : "Participante"}
+          <span className="hidden sm:inline text-[10px] font-medium text-emerald-300 shrink-0">
+            · {participant.role === "HOST" ? "Estúdio" : "Convidado"}
           </span>
         )}
       </div>
@@ -2325,165 +2330,249 @@ export function MeetingRoomView({
   }, [visibleGridParticipants.length]);
 
   // ============================================================================
-  // SCREEN 1: PRE-JOIN GREEN ROOM LOBBY ("Pronto para participar?")
+  // SCREEN 1: BROADCAST GREENROOM LOBBY ("Camarim do Estúdio")
   // ============================================================================
   if (inPreJoinLobby) {
     return (
-      <div className="min-h-[100dvh] safe-top safe-bottom bg-white text-[#1f1f1f] flex flex-col">
+      <div
+        className={`min-h-[100dvh] safe-top safe-bottom flex flex-col ${
+          highContrastMode
+            ? "bg-black text-white"
+            : "studio-atmosphere-dark text-[#F5F7FA]"
+        }`}
+      >
         {statusToast && (
-          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#202124] text-white px-4 py-2 rounded-full text-xs font-medium shadow-xl">
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#10141D] ring-1 ring-emerald-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl">
             {statusToast}
           </div>
         )}
 
-        <header className="h-14 sm:h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#dadce0]/60 shrink-0">
+        <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-white/[0.08] backdrop-blur-xl shrink-0">
           <button
             type="button"
             onClick={navigateBackHome}
-            className="text-lg sm:text-xl font-bold tracking-wider text-[#B8860B] cursor-pointer"
+            className="flex items-center gap-2.5 cursor-pointer group"
+            aria-label="Voltar para o painel inicial do FREETING Studio"
           >
-            FREETING
+            <div className="h-9 w-9 rounded-xl bg-[#121824] ring-1 ring-emerald-400/35 flex items-center justify-center">
+              <div className="flex items-end gap-0.5 h-3.5" aria-hidden="true">
+                <span className="w-1 h-2 bg-emerald-400 rounded-full" />
+                <span className="w-1 h-3.5 bg-emerald-300 rounded-full" />
+                <span className="w-1 h-2.5 bg-amber-400 rounded-full" />
+              </div>
+            </div>
+            <span className="font-display text-lg font-extrabold tracking-tight text-white">
+              FREETING
+            </span>
           </button>
-          <span className="text-xs text-[#5f6368] font-mono bg-[#f1f3f4] px-3 py-1 rounded-full">
-            {roomCode}
-          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHighContrastMode((v) => !v)}
+              aria-pressed={highContrastMode}
+              aria-label="Alternar modo de Alto Contraste AAA"
+              className={`h-9 px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer ${
+                highContrastMode
+                  ? "bg-yellow-400 text-black font-bold"
+                  : "bg-white/[0.06] text-slate-200 ring-1 ring-white/10 hover:bg-white/10"
+              }`}
+            >
+              <Contrast className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Alto Contraste</span>
+            </button>
+            <span className="font-mono-tabular text-xs font-semibold text-emerald-300 bg-emerald-500/15 ring-1 ring-emerald-400/30 px-3 py-1.5 rounded-xl">
+              {roomCode}
+            </span>
+          </div>
         </header>
 
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-          <div className="lg:col-span-7 bg-[#202124] rounded-3xl aspect-[4/3] sm:aspect-video relative overflow-hidden flex items-center justify-center shadow-xl">
-            {!isCameraOff ? (
-              <video
-                ref={bindLobbyVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${
-                  shouldMirrorLocalVideo ? "-scale-x-100" : ""
-                }`}
-              />
-            ) : (
-              <div className="text-center space-y-2.5 px-4">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#0b57d0] text-white text-2xl font-semibold flex items-center justify-center mx-auto shadow-md">
-                  {(displayName.trim() || "P").charAt(0).toUpperCase()}
+        <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
+          {/* Concentric Camera Monitor: R_outer (28px) - Padding (12px) = R_inner (16px) */}
+          <div
+            className={`lg:col-span-7 rounded-[28px] p-3 ${
+              highContrastMode
+                ? "bg-black border-2 border-yellow-400"
+                : "studio-card-dark ring-1 ring-white/10"
+            }`}
+          >
+            <div className="bg-[#080A0F] rounded-[16px] aspect-[4/3] sm:aspect-video relative overflow-hidden flex items-center justify-center ring-1 ring-white/[0.08]">
+              {!isCameraOff ? (
+                <video
+                  ref={bindLobbyVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${
+                    shouldMirrorLocalVideo ? "-scale-x-100" : ""
+                  }`}
+                />
+              ) : (
+                <div className="text-center space-y-3 px-4">
+                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-emerald-500/20 ring-1 ring-emerald-400/35 text-emerald-300 font-display text-2xl font-bold flex items-center justify-center mx-auto">
+                    {(displayName.trim() || "P").charAt(0).toUpperCase()}
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                    Câmera desligada no camarim · Você pode entrar apenas por voz
+                  </p>
                 </div>
-                <p className="text-xs sm:text-sm text-[#e3e3e3]">
-                  A câmera está desligada
-                </p>
-              </div>
-            )}
+              )}
 
-            {!isMuted && (
-              <div className="absolute top-3.5 left-3.5 bg-black/60 backdrop-blur-xs rounded-full px-3 py-1.5 flex items-center gap-2 text-[11px] text-white">
-                <Mic className="w-3.5 h-3.5 text-[#81c995]" />
-                <div className="w-14 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                  <div
-                    style={{ width: `${Math.max(10, micInputLevel)}%` }}
-                    className="h-full bg-[#81c995] transition-all duration-75"
-                  />
-                </div>
-              </div>
-            )}
-
-            {!isCameraOff && !isVirtualCamera && (
-              <button
-                type="button"
-                onClick={handleFlipMobileCamera}
-                title="Inverter câmera (Frontal / Traseira)"
-                aria-label="Inverter câmera"
-                className="absolute top-3.5 right-3.5 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer shadow-md"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            )}
-
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleToggleMic}
-                aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
-                  isMuted
-                    ? "bg-[#ea4335] text-white active:bg-[#d93025]"
-                    : "bg-[#0b57d0] text-white active:bg-[#0842a0]"
-                }`}
-              >
+              {/* Live Segmented VU Voice Level Indicator */}
+              <div className="absolute top-3.5 left-3.5 bg-black/75 backdrop-blur-md ring-1 ring-white/15 rounded-xl px-3 py-1.5 flex items-center gap-2 text-[11px] text-white">
                 {isMuted ? (
-                  <MicOff className="w-5 h-5" />
+                  <>
+                    <MicOff className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="text-rose-300 font-semibold">Mudo</span>
+                  </>
                 ) : (
-                  <Mic className="w-5 h-5" />
+                  <>
+                    <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                    <div className="w-16 h-1.5 bg-white/15 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${Math.max(10, micInputLevel)}%` }}
+                        className="h-full bg-emerald-400 transition-all duration-75"
+                      />
+                    </div>
+                  </>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={handleToggleCamera}
-                aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
-                  isCameraOff
-                    ? "bg-[#ea4335] text-white active:bg-[#d93025]"
-                    : "bg-[#0b57d0] text-white active:bg-[#0842a0]"
-                }`}
-              >
-                {isCameraOff ? (
-                  <VideoOff className="w-5 h-5" />
-                ) : (
-                  <Video className="w-5 h-5" />
-                )}
-              </button>
+              </div>
+
+              {!isCameraOff && !isVirtualCamera && (
+                <button
+                  type="button"
+                  onClick={handleFlipMobileCamera}
+                  title="Inverter câmera (Frontal / Traseira)"
+                  aria-label="Inverter câmera"
+                  className="absolute top-3.5 right-3.5 w-10 h-10 rounded-xl bg-black/75 hover:bg-black/90 ring-1 ring-white/15 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Accessible Dual-Cue Controls (Icon + Explicit State Text for Color-Blind Clarity) */}
+              <div className="absolute bottom-3.5 inset-x-3.5 flex items-center justify-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleToggleMic}
+                  aria-pressed={!isMuted}
+                  aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
+                  className={`h-11 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition cursor-pointer shadow-lg ${
+                    isMuted
+                      ? "bg-rose-600 hover:bg-rose-500 text-white ring-1 ring-rose-300/40"
+                      : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
+                  }`}
+                >
+                  {isMuted ? (
+                    <>
+                      <MicOff className="w-4 h-4" />
+                      <span>Microfone Mudo</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4" />
+                      <span>Microfone Ativo</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleCamera}
+                  aria-pressed={!isCameraOff}
+                  aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
+                  className={`h-11 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition cursor-pointer shadow-lg ${
+                    isCameraOff
+                      ? "bg-rose-600 hover:bg-rose-500 text-white ring-1 ring-rose-300/40"
+                      : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
+                  }`}
+                >
+                  {isCameraOff ? (
+                    <>
+                      <VideoOff className="w-4 h-4" />
+                      <span>Câmera Off</span>
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-4 h-4" />
+                      <span>Câmera Ativa</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Right Check-in Card */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               unlockAndNudgeRemoteAudio();
               setInPreJoinLobby(false);
             }}
-            className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left space-y-4 sm:space-y-5 w-full"
+            className={`lg:col-span-5 rounded-[28px] p-6 sm:p-7 space-y-5 w-full ${
+              highContrastMode
+                ? "bg-black border-2 border-yellow-400"
+                : "studio-card-dark ring-1 ring-white/10"
+            }`}
           >
             <div>
-              <h1 className="text-xl sm:text-3xl font-normal text-[#1f1f1f]">
-                Pronto para participar?
+              <span className="font-mono-tabular text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                Check-in Acústico · Camarim
+              </span>
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white mt-1 text-balance">
+                Tudo pronto para entrar no estúdio?
               </h1>
-              <p className="text-xs sm:text-sm text-[#5f6368] mt-1">
-                Sala{" "}
-                <code className="font-mono font-semibold text-[#1f1f1f]">
+              <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
+                Código da sala:{" "}
+                <code className="font-mono-tabular font-bold text-emerald-300">
                   {roomCode}
                 </code>
               </p>
             </div>
 
-            <div className="w-full max-w-sm">
-              <label className="block text-xs font-medium text-[#5f6368] mb-1.5 text-left">
-                Qual é o seu nome?
+            <div>
+              <label
+                htmlFor="greenroom-display-name"
+                className="block text-xs font-semibold text-slate-300 mb-1.5"
+              >
+                Como seu nome deve aparecer na sala?
               </label>
               <input
+                id="greenroom-display-name"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Digite seu nome para entrar"
-                className="w-full border border-[#dadce0] focus:border-[#0b57d0] focus:ring-2 focus:ring-[#0b57d0]/20 rounded-2xl px-4 py-3 text-base text-[#1f1f1f] focus:outline-none"
+                placeholder="Ex: Érick, Dra. Camila..."
+                className="w-full bg-[#080A0F] ring-1 ring-white/15 focus:ring-2 focus:ring-emerald-400 rounded-xl px-4 py-3 text-base text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full max-w-sm pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
               <button
                 type="submit"
-                className="h-12 px-8 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] active:scale-[0.99] text-white text-sm font-semibold shadow-md transition-all cursor-pointer flex-1"
+                className={`h-12 px-6 rounded-xl text-sm font-bold transition cursor-pointer flex-1 ${
+                  highContrastMode
+                    ? "bg-yellow-400 text-black font-extrabold"
+                    : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20"
+                }`}
               >
-                Participar agora
+                Entrar no Estúdio
               </button>
               <button
                 type="button"
                 onClick={navigateBackHome}
-                className="h-12 px-5 rounded-full border border-[#dadce0] hover:bg-[#f1f3f4] text-sm font-medium text-[#5f6368] transition-colors cursor-pointer"
+                className="h-12 px-5 rounded-xl bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold text-slate-200 transition cursor-pointer"
               >
-                Voltar
+                Painel
               </button>
             </div>
 
-            <p className="text-[11px] text-[#5f6368] max-w-sm leading-relaxed">
-              Conexão P2P protegida com criptografia em trânsito (LGPD). Sem
-              necessidade de cadastro ou conta.
+            <p className="text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                Transmissão P2P criptografada em trânsito (LGPD) sem cadastro obrigatório e sem limite de 60 minutos.
+              </span>
             </p>
           </form>
         </main>
@@ -2492,19 +2581,22 @@ export function MeetingRoomView({
   }
 
   // ============================================================================
-  // SCREEN 2: POST-CALL SUMMARY ("Você saiu da reunião")
+  // SCREEN 2: POST-CALL STUDIO WRAP ("Sessão Encerrada")
   // ============================================================================
   if (isCallEnded) {
     return (
-      <div className="min-h-[100dvh] safe-top safe-bottom bg-[#131314] text-white flex flex-col items-center justify-center p-4 sm:p-6">
-        <div className="max-w-lg w-full bg-[#1e1f20] border border-[#3c4043] rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl">
-          <h1 className="text-xl sm:text-2xl font-normal">
-            Você saiu da reunião
+      <div className="min-h-[100dvh] safe-top safe-bottom studio-atmosphere-dark text-white flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="max-w-lg w-full studio-card-dark ring-1 ring-white/10 rounded-[28px] p-6 sm:p-8 text-center space-y-5">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/35 text-emerald-300 flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold">
+            Sessão encerrada com segurança
           </h1>
-          <p className="text-sm text-[#c4c7c5]">
-            Sala <code className="text-white font-mono">{roomCode}</code> •
-            Duração:{" "}
-            <strong className="text-white">
+          <p className="text-sm text-slate-300">
+            Sala <code className="text-emerald-300 font-mono-tabular font-bold">{roomCode}</code> ·
+            Tempo no ar:{" "}
+            <strong className="text-white font-mono-tabular">
               {formatUnlimitedDuration(endedDurationSeconds)}
             </strong>
           </p>
@@ -2516,24 +2608,24 @@ export function MeetingRoomView({
                 setIsCallEnded(false);
                 setInPreJoinLobby(true);
               }}
-              className="h-11 px-5 rounded-full border border-[#8e918f] hover:bg-[#282a2c] text-sm font-medium cursor-pointer"
+              className="h-11 px-4 rounded-xl bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold cursor-pointer"
             >
-              Voltar para a sala
+              Reentrar
             </button>
             <button
               type="button"
               onClick={handleExportMarkdownMinutes}
-              className="h-11 px-5 rounded-full bg-[#004a77] hover:bg-[#00639b] text-[#c2e7ff] text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
+              className="h-11 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 ring-1 ring-amber-400/35 text-amber-200 text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
-              Baixar resumo
+              Baixar Ata (.MD)
             </button>
             <button
               type="button"
               onClick={navigateBackHome}
-              className="h-11 px-6 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49] text-sm font-semibold cursor-pointer"
+              className="h-11 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-bold cursor-pointer"
             >
-              Tela inicial
+              Painel Inicial
             </button>
           </div>
         </div>
@@ -2542,12 +2634,12 @@ export function MeetingRoomView({
   }
 
   // ============================================================================
-  // SCREEN 3: ACTIVE MEETING ROOM — Anti-Mirror Stage & Multi-Peer Optimized
+  // SCREEN 3: ACTIVE STUDIO ROOM — Spatial Studio Obsidian + Ergonomic Controls
   // ============================================================================
   return (
     <div
       className={`h-[100dvh] max-h-[100dvh] w-full safe-top safe-bottom flex flex-col justify-between overflow-hidden select-none ${
-        highContrastMode ? "bg-black text-white" : "bg-[#131314] text-white"
+        highContrastMode ? "bg-black text-white" : "bg-[#080A0F] text-[#F5F7FA]"
       }`}
     >
       {/* ALWAYS-MOUNTED DEDICATED REMOTE AUDIO LAYER */}
@@ -2578,53 +2670,64 @@ export function MeetingRoomView({
             unlockAndNudgeRemoteAudio();
             setIsAudioAutoplayBlocked(false);
           }}
-          className="fixed top-15 left-1/2 -translate-x-1/2 z-50 bg-[#0b57d0] hover:bg-[#0842a0] text-white px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-2xl flex items-center gap-2 border border-white/25 animate-bounce cursor-pointer"
+          className="fixed top-15 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-2 ring-2 ring-white/40 animate-bounce cursor-pointer"
         >
           <Volume2 className="w-4 h-4 shrink-0" />
-          <span>Toque aqui para ativar o áudio da chamada</span>
+          <span>Toque aqui para liberar o som da sala</span>
         </button>
       )}
 
       {statusToast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-[#282a2c] border border-[#8ab4f8]/50 text-white px-4 py-2 rounded-full text-xs font-medium shadow-2xl flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#81c995] shrink-0" />
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-[#10141D]/95 backdrop-blur-md ring-1 ring-emerald-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
           <span className="truncate">{statusToast}</span>
         </div>
       )}
 
-      {/* TOP BAR */}
-      <header className="h-13 sm:h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2">
+      {/* TOP STUDIO TELEMETRY BAR */}
+      <header className="h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2 border-b border-white/[0.06] bg-[#080A0F]/85 backdrop-blur-md">
         <div className="flex items-center gap-2 min-w-0">
+          <div
+            aria-hidden="true"
+            className="hidden sm:flex h-8 w-8 rounded-xl bg-[#121824] ring-1 ring-emerald-400/35 items-center justify-center shrink-0"
+          >
+            <div className="flex items-end gap-0.5 h-3">
+              <span className="w-0.5 h-2 bg-emerald-400 rounded-full" />
+              <span className="w-0.5 h-3 bg-emerald-300 rounded-full" />
+              <span className="w-0.5 h-2 bg-amber-400 rounded-full" />
+            </div>
+          </div>
+
           <LiveHeaderClock />
-          <span className="hidden sm:inline text-[#5f6368]">|</span>
-          <span className="text-xs sm:text-sm font-semibold sm:font-medium text-[#e3e3e3] tracking-wide truncate">
-            {roomCode}
-          </span>
-          {isRoomLocked && (
-            <span
-              title="Sala bloqueada pelo organizador"
-              className="bg-[#3c4043] text-[#fbbc04] px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0"
-            >
-              <Lock className="w-3 h-3" />
-              <span className="hidden sm:inline">Bloqueada</span>
-            </span>
-          )}
+          <span className="hidden sm:inline text-white/20">·</span>
+
           <button
             type="button"
             onClick={() => setShowReadyCard((v) => !v)}
-            title="Detalhes e link da reunião"
-            aria-label="Detalhes da sala"
-            className="w-9 h-9 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] flex items-center justify-center shrink-0 cursor-pointer"
+            title="Ver link e convite da sala"
+            aria-label={`Sala ${roomCode}. Clique para abrir opções de convite`}
+            className="h-8 px-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 font-mono-tabular text-xs font-bold text-emerald-300 flex items-center gap-1.5 truncate cursor-pointer"
           >
-            <Info className="w-4 h-4" />
+            <span className="truncate">{roomCode}</span>
+            <Info className="w-3.5 h-3.5 text-slate-300 shrink-0" />
           </button>
+
+          {isRoomLocked && (
+            <span
+              title="Sala bloqueada pelo organizador"
+              className="bg-amber-500/15 ring-1 ring-amber-400/35 text-amber-300 px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0"
+            >
+              <Lock className="w-3 h-3" />
+              <span className="hidden sm:inline">Trancada</span>
+            </span>
+          )}
 
           <button
             type="button"
             onClick={handleNativeShareRoomLink}
             title="Compartilhar link da sala"
             aria-label="Compartilhar link da sala"
-            className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] text-[#a8c7fa] flex items-center justify-center shrink-0 cursor-pointer"
+            className="md:hidden w-9 h-9 rounded-xl bg-white/[0.06] active:bg-white/15 text-emerald-300 ring-1 ring-white/10 flex items-center justify-center shrink-0 cursor-pointer"
           >
             <Share2 className="w-4 h-4" />
           </button>
@@ -2638,9 +2741,8 @@ export function MeetingRoomView({
           )}
         </div>
 
-        {/* Right Top Controls */}
+        {/* Right Top Studio Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Multi-Peer Performance / Bandwidth Saver Quick Toggle */}
           <button
             type="button"
             onClick={() => {
@@ -2648,7 +2750,7 @@ export function MeetingRoomView({
               setLowDataMode(next);
               showToast(
                 next
-                  ? "Modo Otimizado (Economia para muitas pessoas) ativado"
+                  ? "Modo Otimizado (Economia para salas grandes) ativado"
                   : "Modo de vídeo HD automático restaurado"
               );
             }}
@@ -2657,16 +2759,17 @@ export function MeetingRoomView({
                 ? "Modo Otimizado ativo (clique para restaurar vídeo HD)"
                 : "Ativar Modo Otimizado para salas cheias / economia de dados"
             }
+            aria-pressed={lowDataMode}
             aria-label="Alternar modo otimizado de desempenho"
-            className={`w-8 h-8 sm:w-auto sm:px-2.5 sm:h-8 rounded-full flex items-center justify-center gap-1 text-[11px] font-medium cursor-pointer transition-colors ${
+            className={`w-9 h-9 sm:w-auto sm:px-3 sm:h-9 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
               lowDataMode
-                ? "bg-[#137333] text-white"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#c4c7c5]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 text-slate-300"
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">
-              {lowDataMode ? "Otimizado" : "HD Auto"}
+              {lowDataMode ? "Economia ON" : "HD Auto"}
             </span>
           </button>
 
@@ -2676,7 +2779,7 @@ export function MeetingRoomView({
               onClick={handleFlipMobileCamera}
               title="Inverter câmera (Frontal / Traseira)"
               aria-label="Inverter câmera"
-              className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] flex items-center justify-center text-[#e3e3e3] cursor-pointer"
+              className="md:hidden w-9 h-9 rounded-xl bg-white/[0.06] active:bg-white/15 ring-1 ring-white/10 flex items-center justify-center text-white cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -2688,16 +2791,17 @@ export function MeetingRoomView({
               setHighContrastMode((v) => !v);
               showToast(
                 !highContrastMode
-                  ? "Alto contraste ativado"
+                  ? "Alto contraste AAA ativado"
                   : "Alto contraste desativado"
               );
             }}
-            title="Alto Contraste"
-            aria-label="Alternar Alto Contraste"
-            className={`hidden sm:flex w-8 h-8 rounded-full items-center justify-center cursor-pointer ${
+            aria-pressed={highContrastMode}
+            title="Alto Contraste AAA"
+            aria-label="Alternar Alto Contraste AAA"
+            className={`hidden sm:flex w-9 h-9 rounded-xl items-center justify-center cursor-pointer ${
               highContrastMode
-                ? "bg-yellow-400 text-black"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#c4c7c5]"
+                ? "bg-yellow-400 text-black font-bold"
+                : "bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 text-slate-300"
             }`}
           >
             <Contrast className="w-4 h-4" />
@@ -2706,25 +2810,25 @@ export function MeetingRoomView({
           <button
             type="button"
             onClick={() => setShowShortcutsModal(true)}
-            title="Atalhos de Teclado (?)"
+            title="Atalhos de Teclado e Acessibilidade (?)"
             aria-label="Abrir guia de atalhos de teclado"
-            className="hidden md:flex w-8 h-8 rounded-full bg-[#282a2c] hover:bg-[#3c4043] items-center justify-center text-[#c4c7c5] cursor-pointer"
+            className="hidden md:flex w-9 h-9 rounded-xl bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 items-center justify-center text-slate-300 cursor-pointer"
           >
             <Keyboard className="w-4 h-4" />
           </button>
 
-          {/* Mobile Quick Chat Button in Header with Unread Badge */}
+          {/* Mobile Quick Chat Button in Header */}
           <button
             type="button"
             onClick={() =>
               setActiveDrawer((d) => (d === "chat" ? null : "chat"))
             }
             aria-label="Abrir chat"
-            className="md:hidden w-9 h-9 rounded-full bg-[#282a2c] active:bg-[#3c4043] flex items-center justify-center text-[#e3e3e3] relative cursor-pointer"
+            className="md:hidden w-9 h-9 rounded-xl bg-white/[0.06] active:bg-white/15 ring-1 ring-white/10 flex items-center justify-center text-white relative cursor-pointer"
           >
             <MessageSquare className="w-4 h-4" />
             {unreadChatCount > 0 && (
-              <span className="min-w-[16px] h-4 px-1 rounded-full bg-[#ea4335] text-white text-[10px] font-bold flex items-center justify-center absolute -top-0.5 -right-0.5">
+              <span className="min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white font-mono-tabular text-[10px] font-bold flex items-center justify-center absolute -top-1 -right-1">
                 {unreadChatCount > 9 ? "9+" : unreadChatCount}
               </span>
             )}
@@ -2737,61 +2841,45 @@ export function MeetingRoomView({
               setActiveDrawer((d) => (d === "people" ? null : "people"))
             }
             aria-label={`Participantes na sala: ${participants.length}`}
-            className="flex items-center gap-1.5 bg-[#282a2c] hover:bg-[#3c4043] rounded-full px-3 h-9 cursor-pointer"
+            className={`flex items-center gap-1.5 rounded-xl px-3 h-9 cursor-pointer transition ${
+              activeDrawer === "people"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 text-white"
+            }`}
           >
-            <Users className="w-4 h-4 text-[#a8c7fa]" />
-            <span className="text-xs font-semibold text-[#e3e3e3]">
+            <Users className="w-4 h-4" />
+            <span className="font-mono-tabular text-xs font-bold">
               {participants.length}
             </span>
             {raisedHandsCount > 0 && (
               <span
                 title={`${raisedHandsCount} pessoa(s) com a mão levantada`}
-                className="bg-[#fbbc04] text-[#1f1f1f] text-[10px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5"
+                className="bg-amber-400 text-slate-950 font-mono-tabular text-[10px] font-bold px-1.5 py-0.2 rounded-md flex items-center gap-0.5"
               >
                 ✋ {raisedHandsCount}
               </span>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setActiveDrawer((d) => (d === "activities" ? null : "activities"))
-            }
-            title="Gravações e atividades"
-            aria-label="Gravações e atividades"
-            className="hidden sm:flex w-9 h-9 rounded-full bg-[#282a2c] hover:bg-[#3c4043] items-center justify-center text-[#c4c7c5] cursor-pointer"
-          >
-            <Edit3 className="w-4 h-4" />
           </button>
         </div>
       </header>
 
       {/* MAIN VIDEO STAGE + ANTI-MIRROR PRESENTATION STAGE + PAGINATED GALLERY + DRAWERS */}
       <div
-        className={`flex-1 px-2.5 sm:px-4 py-1 flex ${
+        className={`flex-1 px-2.5 sm:px-4 py-2 flex ${
           anyPresentationActive ? "flex-col lg:flex-row" : "flex-row"
         } gap-2.5 sm:gap-3 overflow-hidden relative min-h-0`}
       >
-        {/* ====================================================================
-            PRESENTATION STAGE:
-            1) If YOU are presenting (`isScreenSharing`): renders Anti-Infinite-Mirror
-               Presenter Control Deck (NO full-screen loop!).
-            2) If REMOTE peer is presenting (`remoteScreenSharer`): renders crisp
-               object-contain viewer with Zoom 1x/1.5x/2x + Filmstrip Toggle + Fullscreen.
-           ==================================================================== */}
         {anyPresentationActive && (
-          <div className="flex-1 bg-[#0d1520] border-2 border-[#a8c7fa]/40 rounded-2xl relative flex flex-col overflow-hidden min-h-0">
-            <div className="bg-[#1e1f20]/95 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 border-b border-[#3c4043] shrink-0">
-              <span className="text-xs font-medium text-[#a8c7fa] flex items-center gap-2 truncate">
+          <div className="flex-1 bg-[#0B0F17] ring-1 ring-emerald-400/35 rounded-[22px] relative flex flex-col overflow-hidden min-h-0">
+            <div className="bg-[#10141D]/95 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 border-b border-white/10 shrink-0">
+              <span className="text-xs font-semibold text-emerald-300 flex items-center gap-2 truncate">
                 <MonitorUp className="w-4 h-4 shrink-0" />
                 {isScreenSharing
-                  ? "Você está apresentando sua tela"
-                  : `Apresentação de ${remoteScreenSharer?.name}`}
+                  ? "Transmitindo sua tela (Anti-Espelho Ativo)"
+                  : `Tela de ${remoteScreenSharer?.name}`}
               </span>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Toggle Participant Filmstrip to maximize screen share space */}
                 <button
                   type="button"
                   onClick={() => setHideFilmstripDuringShare((v) => !v)}
@@ -2800,7 +2888,7 @@ export function MeetingRoomView({
                       ? "Mostrar vídeos dos participantes"
                       : "Expandir apresentação (ocultar miniaturas)"
                   }
-                  className="px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3] text-[11px] flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/12 text-slate-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
                 >
                   {hideFilmstripDuringShare ? (
                     <Eye className="w-3.5 h-3.5" />
@@ -2809,7 +2897,7 @@ export function MeetingRoomView({
                   )}
                   <span className="hidden sm:inline">
                     {hideFilmstripDuringShare
-                      ? "Mostrar pessoas"
+                      ? "Mostrar câmeras"
                       : "Focar tela"}
                   </span>
                 </button>
@@ -2819,14 +2907,14 @@ export function MeetingRoomView({
                     <button
                       type="button"
                       onClick={startOrSwitchScreenShare}
-                      className="px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] text-[11px] font-medium cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/12 text-emerald-300 text-[11px] font-semibold cursor-pointer"
                     >
                       Trocar janela
                     </button>
                     <button
                       type="button"
                       onClick={stopScreenShare}
-                      className="px-3 py-1 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold cursor-pointer"
+                      className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer"
                     >
                       Parar
                     </button>
@@ -2841,15 +2929,15 @@ export function MeetingRoomView({
                         )
                       }
                       title="Aplicar zoom na tela compartilhada"
-                      className="px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-white text-[11px] flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/12 text-white font-mono-tabular text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                     >
-                      <ZoomIn className="w-3.5 h-3.5" />
+                      <ZoomIn className="w-3.5 h-3.5 text-emerald-400" />
                       <span>{Math.round(presentationZoom * 100)}%</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleToggleFullscreen}
-                      className="px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-white text-[11px] flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/12 text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Tela cheia</span>
@@ -2861,35 +2949,33 @@ export function MeetingRoomView({
 
             {isScreenSharing ? (
               /* ANTI-INFINITE-MIRROR PRESENTER DECK */
-              <div className="flex-1 min-h-0 bg-gradient-to-b from-[#111b2b] to-[#0b111b] p-4 sm:p-8 flex flex-col items-center justify-center text-center relative overflow-y-auto">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#0b57d0]/25 border border-[#a8c7fa]/40 flex items-center justify-center text-[#a8c7fa] mb-3 shadow-lg">
-                  <MonitorUp className="w-7 h-7 sm:w-8 sm:h-8" />
+              <div className="flex-1 min-h-0 bg-gradient-to-b from-[#0E161E] to-[#080B11] p-4 sm:p-8 flex flex-col items-center justify-center text-center relative overflow-y-auto">
+                <div className="w-15 h-15 rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/35 flex items-center justify-center text-emerald-300 mb-3 shadow-lg">
+                  <MonitorUp className="w-7 h-7" />
                 </div>
 
-                <h2 className="text-base sm:text-lg font-semibold text-white">
-                  Sua tela está sendo transmitida para todos na sala
+                <h2 className="font-display text-base sm:text-xl font-bold text-white">
+                  Sua apresentação está no ar para toda a sala
                 </h2>
-                <p className="text-xs text-[#c4c7c5] max-w-md mt-1.5 leading-relaxed">
-                  O espelho local fica oculto automaticamente para evitar o
-                  efeito de <strong>tela infinita</strong> e economizar placa de
-                  vídeo. Os outros participantes estão vendo sua apresentação em
-                  alta definição.
+                <p className="text-xs text-slate-300 max-w-md mt-1.5 leading-relaxed">
+                  O espelho local é suprimido por padrão para eliminar o{" "}
+                  <strong>efeito túnel infinito</strong> e poupar GPU.
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
                   <button
                     type="button"
                     onClick={startOrSwitchScreenShare}
-                    className="h-10 px-4 rounded-full bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
+                    className="h-10 px-4 rounded-xl bg-white/[0.06] hover:bg-white/12 ring-1 ring-white/10 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer"
                   >
-                    <RefreshCw className="w-3.5 h-3.5 text-[#a8c7fa]" />
-                    <span>Escolher outra janela / guia</span>
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Trocar janela / guia</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowLocalScreenPreview((v) => !v)}
-                    className="h-10 px-4 rounded-full bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#e3e3e3] flex items-center gap-2 cursor-pointer"
+                    className="h-10 px-4 rounded-xl bg-white/[0.06] hover:bg-white/12 ring-1 ring-white/10 text-xs font-semibold text-slate-200 flex items-center gap-2 cursor-pointer"
                   >
                     {showLocalScreenPreview ? (
                       <EyeOff className="w-3.5 h-3.5" />
@@ -2899,26 +2985,24 @@ export function MeetingRoomView({
                     <span>
                       {showLocalScreenPreview
                         ? "Ocultar miniatura"
-                        : "Ver miniatura discreta"}
+                        : "Espiar miniatura"}
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={stopScreenShare}
-                    className="h-10 px-5 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-xs font-semibold text-white flex items-center gap-2 shadow-md cursor-pointer"
+                    className="h-10 px-5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white flex items-center gap-2 shadow-md cursor-pointer"
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
-                    <span>Parar apresentação</span>
+                    <span>Encerrar tela</span>
                   </button>
                 </div>
 
-                {/* LGPD Screen Privacy Shield Quick Pill */}
-                <label className="mt-4 inline-flex items-center gap-2 bg-[#1e1f20]/90 border border-[#3c4043] rounded-full px-3.5 py-1.5 text-[11px] text-[#c4c7c5] cursor-pointer">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#81c995] shrink-0" />
+                <label className="mt-4 inline-flex items-center gap-2 bg-[#10141D] ring-1 ring-white/10 rounded-xl px-3.5 py-2 text-[11px] text-slate-300 cursor-pointer">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>
-                    Escudo LGPD: ocultar avisos do chat na minha tela durante a
-                    transmissão
+                    Escudo LGPD: ocultar notificações do chat na minha tela
                   </span>
                   <input
                     type="checkbox"
@@ -2928,13 +3012,12 @@ export function MeetingRoomView({
                       setLgpdScreenPrivacy(checked);
                       saveLgpdConsent({ screenSharePrivacyShield: checked });
                     }}
-                    className="w-4 h-4 accent-[#81c995]"
+                    className="w-4 h-4 accent-emerald-500"
                   />
                 </label>
 
-                {/* Optional Compact Corner Thumbnail (Never full-screen mirror!) */}
                 {showLocalScreenPreview && (
-                  <div className="mt-4 w-56 aspect-video rounded-xl overflow-hidden border border-[#a8c7fa]/50 bg-black shadow-2xl relative">
+                  <div className="mt-4 w-56 aspect-video rounded-xl overflow-hidden ring-1 ring-emerald-400/40 bg-black shadow-2xl relative">
                     <video
                       ref={bindScreenPreviewRef}
                       autoPlay
@@ -2942,7 +3025,7 @@ export function MeetingRoomView({
                       muted
                       className="w-full h-full object-contain"
                     />
-                    <span className="absolute bottom-1 left-1.5 bg-black/75 text-[9px] text-white px-1.5 py-0.5 rounded">
+                    <span className="absolute bottom-1 left-1.5 bg-black/80 text-[9px] text-white px-1.5 py-0.5 rounded">
                       Miniatura local
                     </span>
                   </div>
@@ -2999,7 +3082,6 @@ export function MeetingRoomView({
               ))}
             </div>
 
-            {/* Multi-Participant Pagination Bar (Appears automatically when room has more people than page size!) */}
             {totalGalleryPages > 1 && (
               <div className="flex items-center justify-center gap-2 py-1 shrink-0">
                 <button
@@ -3007,14 +3089,14 @@ export function MeetingRoomView({
                   disabled={safeGalleryPage === 0}
                   onClick={() => setGalleryPage((p) => Math.max(0, p - 1))}
                   aria-label="Página anterior de participantes"
-                  className="w-7 h-7 rounded-full bg-[#282a2c] hover:bg-[#3c4043] disabled:opacity-40 flex items-center justify-center text-white cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-white/[0.06] hover:bg-white/12 disabled:opacity-40 flex items-center justify-center text-white cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-[11px] text-[#c4c7c5] bg-[#1e1f20] border border-[#3c4043] px-3 py-0.5 rounded-full">
+                <span className="font-mono-tabular text-[11px] text-slate-300 bg-[#10141D] ring-1 ring-white/10 px-3 py-1 rounded-xl">
                   Página {safeGalleryPage + 1}/{totalGalleryPages}
                   {hiddenParticipantsCount > 0
-                    ? ` • +${hiddenParticipantsCount} na sala`
+                    ? ` · +${hiddenParticipantsCount} na sala`
                     : ""}
                 </span>
                 <button
@@ -3026,7 +3108,7 @@ export function MeetingRoomView({
                     )
                   }
                   aria-label="Próxima página de participantes"
-                  className="w-7 h-7 rounded-full bg-[#282a2c] hover:bg-[#3c4043] disabled:opacity-40 flex items-center justify-center text-white cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-white/[0.06] hover:bg-white/12 disabled:opacity-40 flex items-center justify-center text-white cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -3035,19 +3117,24 @@ export function MeetingRoomView({
           </div>
         )}
 
-        {/* FLOATING OVERLAY: "Sua reunião está pronta" */}
+        {/* STUDIO INVITE POPOVER CARD (Replaces old clone white/blue cards) */}
         {showReadyCard && (
-          <div className="absolute bottom-2 left-2.5 right-2.5 sm:bottom-3 sm:left-6 sm:right-auto z-30 sm:w-[330px] flex flex-col">
-            <div className="bg-white text-[#1f1f1f] rounded-2xl p-4 sm:p-5 shadow-2xl">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm sm:text-base font-semibold text-[#1f1f1f]">
-                  Sua reunião está pronta
-                </h2>
+          <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-5 sm:right-auto z-30 sm:w-[340px]">
+            <div className="bg-[#10141D]/95 backdrop-blur-xl ring-1 ring-white/15 text-white rounded-[22px] p-4 sm:p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-mono-tabular text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    Acesso Instantâneo
+                  </span>
+                  <h2 className="font-display text-base font-bold text-white">
+                    Convide para este Estúdio
+                  </h2>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowReadyCard(false)}
                   aria-label="Fechar cartão de convite"
-                  className="p-1.5 rounded-full hover:bg-[#f1f3f4] text-[#5f6368] cursor-pointer"
+                  className="h-8 w-8 rounded-xl bg-white/[0.06] hover:bg-white/12 text-slate-300 flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3056,63 +3143,31 @@ export function MeetingRoomView({
               <button
                 type="button"
                 onClick={handleNativeShareRoomLink}
-                className="w-full sm:w-auto bg-[#0b57d0] hover:bg-[#0842a0] text-white rounded-full px-4 py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-2 mb-3 cursor-pointer shadow-xs"
+                className="w-full h-10 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl px-4 text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Convidar e compartilhar link</span>
+                <span>Enviar convite direto</span>
               </button>
 
-              <p className="text-xs text-[#444746] leading-relaxed mb-2">
-                Ou copie o link da sala para enviar a quem vai participar:
-              </p>
-
-              <div className="bg-[#f1f3f4] rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
-                <span className="text-xs text-[#1f1f1f] truncate font-mono">
+              <div className="bg-[#080A0F] ring-1 ring-white/10 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+                <span className="font-mono-tabular text-xs text-slate-200 truncate">
                   {realShareableLink}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyRoomLink}
-                  title="Copiar link da reunião"
-                  aria-label="Copiar link da reunião"
-                  className="text-[#444746] hover:text-[#1f1f1f] p-1 cursor-pointer shrink-0"
+                  title="Copiar link da sala"
+                  aria-label="Copiar link da sala"
+                  className="text-emerald-400 hover:text-emerald-300 p-1 cursor-pointer shrink-0"
                 >
                   {copiedLink ? (
-                    <Check className="w-4 h-4 text-[#137333]" />
+                    <Check className="w-4 h-4" />
                   ) : (
                     <Copy className="w-4 h-4" />
                   )}
                 </button>
               </div>
             </div>
-
-            {showPtToastCard && (
-              <div className="hidden sm:block bg-[#004a77] text-white rounded-2xl p-4 shadow-2xl -mt-3 mx-1 relative border border-[#00639b]">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-[#c2e7ff] text-[#001d35] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      Novo
-                    </span>
-                    <span className="text-xs font-semibold">
-                      Já disponível em Português
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPtToastCard(false)}
-                    aria-label="Fechar aviso"
-                    className="text-[#c2e7ff] hover:text-white cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p className="text-[11px] text-[#e1f5fe] leading-relaxed">
-                  Agora você pode fazer perguntas ao assistente e receber
-                  resumos de discussões em Português.
-                </p>
-                <div className="w-3 h-3 bg-[#004a77] rotate-45 absolute -bottom-1.5 left-10 border-r border-b border-[#00639b]" />
-              </div>
-            )}
           </div>
         )}
 
@@ -3125,7 +3180,7 @@ export function MeetingRoomView({
               className="absolute bottom-14 flex flex-col items-center animate-reaction-float"
             >
               <span className="text-4xl drop-shadow-md">{r.emoji}</span>
-              <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full mt-1">
+              <span className="text-[10px] bg-black/70 ring-1 ring-white/10 text-white px-2 py-0.5 rounded-lg mt-1">
                 {r.senderName}
               </span>
             </div>
@@ -3135,39 +3190,39 @@ export function MeetingRoomView({
         {/* LIVE CAPTIONS OVERLAY (CC) */}
         {isCaptionsOn && captions.length > 0 && (
           <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-3 sm:px-4 pointer-events-none">
-            <div className="bg-black/85 backdrop-blur-xs border border-white/15 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm text-white shadow-xl">
-              <div className="text-[10px] sm:text-[11px] text-[#8ab4f8] font-semibold mb-0.5">
-                {captions[captions.length - 1].speakerName} • Legendas ao Vivo
+            <div className="bg-black/88 backdrop-blur-md ring-1 ring-emerald-400/30 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm text-white shadow-2xl">
+              <div className="text-[10px] sm:text-[11px] text-emerald-300 font-bold mb-0.5">
+                {captions[captions.length - 1].speakerName} · Legendas ao Vivo (PT-BR)
               </div>
               <div>{captions[captions.length - 1].text}</div>
             </div>
           </div>
         )}
 
-        {/* ADAPTIVE DRAWER: Bottom Sheet on Mobile (< lg), Side Panel on Desktop (lg:) */}
+        {/* ADAPTIVE STUDIO DRAWER: Bottom Sheet on Mobile (< lg), Side Panel on Desktop (lg:) */}
         {activeDrawer && (
           <>
             <div
-              className="lg:hidden fixed inset-0 bg-black/60 z-40"
+              className="lg:hidden fixed inset-0 bg-black/65 z-40"
               onClick={() => setActiveDrawer(null)}
             />
-            <aside className="fixed inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl safe-bottom z-50 lg:static lg:h-full lg:w-96 lg:rounded-2xl bg-[#1e1f20] border border-[#3c4043] flex flex-col overflow-hidden shrink-0 animate-sheet-up">
-              <div className="w-10 h-1 rounded-full bg-[#5f6368] mx-auto mt-2.5 lg:hidden shrink-0" />
-              <div className="px-5 py-3.5 border-b border-[#3c4043] flex items-center justify-between shrink-0">
-                <h3 className="text-sm font-semibold text-white">
+            <aside className="fixed inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl safe-bottom z-50 lg:static lg:h-full lg:w-96 lg:rounded-[22px] bg-[#10141D] ring-1 ring-white/12 flex flex-col overflow-hidden shrink-0 animate-sheet-up">
+              <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mt-2.5 lg:hidden shrink-0" />
+              <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between shrink-0">
+                <h3 className="font-display text-sm font-bold text-white">
                   {activeDrawer === "people" &&
-                    `Pessoas (${participants.length})`}
-                  {activeDrawer === "chat" && "Mensagens na chamada"}
+                    `Participantes (${participants.length})`}
+                  {activeDrawer === "chat" && "Chat do Estúdio"}
                   {activeDrawer === "ai" && "Assistente IA (Português)"}
-                  {activeDrawer === "activities" && "Gravações & Resumo"}
+                  {activeDrawer === "activities" && "Cofre de Gravação & Ata"}
                   {activeDrawer === "security" &&
-                    "Segurança, Desempenho & LGPD"}
+                    "Segurança, Rede & LGPD"}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setActiveDrawer(null)}
-                  aria-label="Fechar painel"
-                  className="p-2 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+                  aria-label="Fechar painel lateral"
+                  className="h-8 w-8 rounded-xl bg-white/[0.06] hover:bg-white/12 text-slate-300 flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3180,18 +3235,17 @@ export function MeetingRoomView({
                       <button
                         type="button"
                         onClick={handleNativeShareRoomLink}
-                        className="w-full h-10 px-4 rounded-full bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full h-10 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <Share2 className="w-4 h-4" />
                         Compartilhar link de convite
                       </button>
 
-                      {/* Host Bulk Moderation for Large Rooms */}
                       {isCreatorRole && participants.length > 1 && (
                         <button
                           type="button"
                           onClick={handleHostMuteAll}
-                          className="w-full h-9 px-4 rounded-full bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-[#f28b82] font-medium flex items-center justify-center gap-2 cursor-pointer"
+                          className="w-full h-9 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 ring-1 ring-rose-400/35 text-rose-300 font-semibold flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <VolumeX className="w-4 h-4" />
                           Silenciar microfone de todos
@@ -3207,25 +3261,25 @@ export function MeetingRoomView({
                         return (
                           <div
                             key={p.id}
-                            className="flex items-center justify-between p-3 rounded-xl bg-[#282a2c] gap-2"
+                            className="flex items-center justify-between p-3 rounded-xl bg-white/[0.04] ring-1 ring-white/[0.07] gap-2"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div
                                 style={{ backgroundColor: p.avatarColor }}
-                                className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+                                className="w-9 h-9 rounded-xl font-display flex items-center justify-center text-white font-bold shrink-0"
                               >
                                 {p.name.charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-medium text-white truncate flex items-center gap-1">
+                                <div className="font-semibold text-white truncate flex items-center gap-1">
                                   <span className="truncate">{p.name}</span>
                                   {p.isHandRaised && <span>✋</span>}
                                 </div>
-                                <div className="text-[11px] text-[#9aa0a6]">
+                                <div className="text-[11px] text-slate-400">
                                   {p.role === "HOST"
                                     ? "Organizador"
-                                    : "Participante"}
-                                  {p.isScreenSharing ? " • Apresentando" : ""}
+                                    : "Convidado"}
+                                  {p.isScreenSharing ? " · Apresentando" : ""}
                                 </div>
                               </div>
                             </div>
@@ -3239,10 +3293,10 @@ export function MeetingRoomView({
                                     ? "Remover destaque"
                                     : "Fixar participante"
                                 }
-                                className={`w-7 h-7 rounded-full flex items-center justify-center cursor-pointer ${
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
                                   isPinned
-                                    ? "bg-[#a8c7fa] text-[#041e49]"
-                                    : "hover:bg-[#3c4043] text-[#c4c7c5]"
+                                    ? "bg-amber-400 text-slate-950"
+                                    : "hover:bg-white/10 text-slate-300"
                                 }`}
                               >
                                 <Pin className="w-3.5 h-3.5" />
@@ -3253,21 +3307,21 @@ export function MeetingRoomView({
                                   type="button"
                                   onClick={() => handleHostMuteSingle(p)}
                                   title="Silenciar participante"
-                                  className="w-7 h-7 rounded-full hover:bg-[#3c4043] text-[#f28b82] flex items-center justify-center cursor-pointer"
+                                  className="w-7 h-7 rounded-lg hover:bg-rose-500/20 text-rose-300 flex items-center justify-center cursor-pointer"
                                 >
                                   <VolumeX className="w-3.5 h-3.5" />
                                 </button>
                               )}
 
                               {p.isCameraOff ? (
-                                <VideoOff className="w-4 h-4 text-[#9aa0a6]" />
+                                <VideoOff className="w-4 h-4 text-slate-500" />
                               ) : (
-                                <Video className="w-4 h-4 text-[#81c995]" />
+                                <Video className="w-4 h-4 text-emerald-400" />
                               )}
                               {p.isMuted ? (
-                                <MicOff className="w-4 h-4 text-[#f28b82]" />
+                                <MicOff className="w-4 h-4 text-rose-400" />
                               ) : (
-                                <Mic className="w-4 h-4 text-[#81c995]" />
+                                <Mic className="w-4 h-4 text-emerald-400" />
                               )}
                             </div>
                           </div>
@@ -3281,14 +3335,17 @@ export function MeetingRoomView({
                   <div className="flex flex-col h-full justify-between gap-3">
                     <div className="space-y-2.5 overflow-y-auto pr-1 flex-1">
                       {chatMessages.map((m) => (
-                        <div key={m.id} className="bg-[#282a2c] rounded-xl p-3">
-                          <div className="flex items-center justify-between text-[11px] text-[#9aa0a6] mb-1">
-                            <span className="font-semibold text-white">
+                        <div
+                          key={m.id}
+                          className="bg-white/[0.04] ring-1 ring-white/[0.07] rounded-xl p-3"
+                        >
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                            <span className="font-semibold text-emerald-300">
                               {m.senderName}
                             </span>
-                            <span>{m.timestamp}</span>
+                            <span className="font-mono-tabular">{m.timestamp}</span>
                           </div>
-                          <p className="text-[#e3e3e3] leading-relaxed break-words">
+                          <p className="text-slate-100 leading-relaxed break-words">
                             {m.text}
                           </p>
                         </div>
@@ -3303,12 +3360,12 @@ export function MeetingRoomView({
                         type="text"
                         value={chatDraft}
                         onChange={(e) => setChatDraft(e.target.value)}
-                        placeholder="Enviar mensagem..."
-                        className="flex-1 bg-[#282a2c] border border-[#3c4043] rounded-full px-4 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:border-[#a8c7fa]"
+                        placeholder="Escrever no chat..."
+                        className="flex-1 bg-[#080A0F] ring-1 ring-white/15 rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
                       />
                       <button
                         type="submit"
-                        className="h-11 px-5 rounded-full bg-[#0b57d0] text-white font-semibold shrink-0 cursor-pointer"
+                        className="h-11 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shrink-0 cursor-pointer"
                       >
                         Enviar
                       </button>
@@ -3323,14 +3380,14 @@ export function MeetingRoomView({
                         type="text"
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="Perguntar para IA..."
-                        className="flex-1 bg-[#282a2c] border border-[#3c4043] rounded-full px-4 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:border-[#a8c7fa]"
+                        placeholder="Perguntar para IA da sala..."
+                        className="flex-1 bg-[#080A0F] ring-1 ring-white/15 rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                       />
                       <button
                         type="submit"
-                        className="h-11 px-4 rounded-full bg-[#0b57d0] text-white font-semibold shrink-0 cursor-pointer"
+                        className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold shrink-0 cursor-pointer"
                       >
-                        Pedir
+                        Gerar
                       </button>
                     </form>
                     <div className="flex flex-wrap gap-2">
@@ -3342,27 +3399,27 @@ export function MeetingRoomView({
                             "Resuma a discussão até agora"
                           )
                         }
-                        className="bg-[#282a2c] hover:bg-[#3c4043] text-[#a8c7fa] px-3.5 py-2 rounded-full text-xs cursor-pointer"
+                        className="bg-amber-500/15 hover:bg-amber-500/25 ring-1 ring-amber-400/35 text-amber-200 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
                       >
                         ✦ Resumir discussão
                       </button>
                       <button
                         type="button"
                         onClick={handleExportMarkdownMinutes}
-                        className="bg-[#1e3a2f] hover:bg-[#274d3e] text-[#81c995] px-3.5 py-2 rounded-full text-xs cursor-pointer"
+                        className="bg-emerald-500/15 hover:bg-emerald-500/25 ring-1 ring-emerald-400/35 text-emerald-300 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
                       >
-                        ⬇ Baixar Ata
+                        ⬇ Baixar Ata (.MD)
                       </button>
                     </div>
                     {aiResponses.map((res, idx) => (
                       <div
                         key={idx}
-                        className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2"
+                        className="bg-white/[0.04] ring-1 ring-white/10 rounded-xl p-3.5 space-y-2"
                       >
-                        <div className="font-semibold text-[#a8c7fa]">
+                        <div className="font-semibold text-amber-300">
                           {res.title} ({res.generatedAt})
                         </div>
-                        <pre className="whitespace-pre-wrap font-sans text-[#e3e3e3] leading-relaxed">
+                        <pre className="whitespace-pre-wrap font-sans text-slate-200 leading-relaxed">
                           {res.answer}
                         </pre>
                       </div>
@@ -3372,36 +3429,35 @@ export function MeetingRoomView({
 
                 {activeDrawer === "activities" && (
                   <div className="space-y-3">
-                    <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3.5 space-y-2.5">
+                    <div className="bg-white/[0.04] ring-1 ring-white/10 rounded-xl p-3.5 space-y-2.5">
                       <div className="font-semibold text-white flex items-center gap-1.5">
-                        <Disc className="w-4 h-4 text-[#ea4335]" />
-                        Gravação da reunião
+                        <Disc className="w-4 h-4 text-rose-400" />
+                        Gravação Local Sem Limite
                       </div>
-                      <p className="text-[11px] text-[#c4c7c5]">
-                        Grave a reunião completa com áudio de todos os
-                        participantes para assistir ou baixar depois.
+                      <p className="text-[11px] text-slate-300">
+                        Salva localmente no seu navegador sem teto de 60 minutos e com áudio mixado de todos os participantes.
                       </p>
                       {!recordingSession ? (
                         <button
                           type="button"
                           onClick={handleStartUnlimitedRecording}
-                          className="w-full h-11 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white font-semibold cursor-pointer"
+                          className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer"
                         >
-                          ● Iniciar gravação
+                          ● Iniciar Gravação Local
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={handleStopAndDownloadRecording}
-                          className="w-full h-11 rounded-full bg-[#f28b82] text-[#601410] font-semibold cursor-pointer"
+                          className="w-full h-11 rounded-xl bg-rose-400 text-slate-950 font-bold cursor-pointer"
                         >
-                          ■ Parar e salvar gravação
+                          ■ Parar e Salvar no Cofre
                         </button>
                       )}
                     </div>
 
                     {previewVideoUrl && (
-                      <div className="bg-[#282a2c] border border-[#3c4043] rounded-xl p-3 space-y-2">
+                      <div className="bg-white/[0.04] ring-1 ring-white/10 rounded-xl p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-white">
                             Prévia da gravação
@@ -3409,7 +3465,7 @@ export function MeetingRoomView({
                           <button
                             type="button"
                             onClick={() => setPreviewVideoUrl(null)}
-                            className="text-[#9aa0a6] hover:text-white cursor-pointer"
+                            className="text-slate-400 hover:text-white cursor-pointer"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -3426,29 +3482,29 @@ export function MeetingRoomView({
                     <button
                       type="button"
                       onClick={handleExportMarkdownMinutes}
-                      className="w-full h-11 px-4 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] text-white font-medium flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full h-11 px-4 rounded-xl bg-white/[0.06] hover:bg-white/12 ring-1 ring-white/10 text-white font-semibold flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                      Exportar resumo e transcrição
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      Exportar Ata e Transcrição (.MD)
                     </button>
 
                     <div className="pt-2">
-                      <div className="font-semibold text-[#9aa0a6] uppercase tracking-wider text-[10px] mb-2">
-                        Gravações recentes ({savedRecordings.length})
+                      <div className="font-semibold text-slate-400 uppercase tracking-wider text-[10px] mb-2">
+                        Cofre Local ({savedRecordings.length})
                       </div>
                       {savedRecordings.map((rec) => {
                         const ext = getRecordingFileExtension(rec.mimeType);
                         return (
                           <div
                             key={rec.sessionId}
-                            className="bg-[#282a2c] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
+                            className="bg-white/[0.04] ring-1 ring-white/[0.07] rounded-xl p-3 mb-2 flex items-center justify-between gap-2"
                           >
                             <div>
-                              <div className="font-medium text-white">
+                              <div className="font-mono-tabular font-semibold text-white">
                                 {rec.roomCode}
                               </div>
-                              <div className="text-[10px] text-[#9aa0a6]">
-                                {formatUnlimitedDuration(rec.durationSeconds)} •{" "}
+                              <div className="font-mono-tabular text-[10px] text-slate-400">
+                                {formatUnlimitedDuration(rec.durationSeconds)} ·{" "}
                                 {formatRecordingBytes(rec.totalBytes)}
                               </div>
                             </div>
@@ -3467,7 +3523,7 @@ export function MeetingRoomView({
                                     setPreviewVideoUrl(url);
                                   }
                                 }}
-                                className="w-9 h-9 rounded-full bg-[#1e3a2f] text-[#81c995] flex items-center justify-center cursor-pointer"
+                                className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center cursor-pointer"
                               >
                                 <Play className="w-4 h-4" />
                               </button>
@@ -3487,7 +3543,7 @@ export function MeetingRoomView({
                                     );
                                   }
                                 }}
-                                className="w-9 h-9 rounded-full bg-[#0b57d0] text-white flex items-center justify-center cursor-pointer"
+                                className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center cursor-pointer"
                               >
                                 <Download className="w-4 h-4" />
                               </button>
@@ -3501,33 +3557,31 @@ export function MeetingRoomView({
 
                 {activeDrawer === "security" && (
                   <div className="space-y-3">
-                    {/* Performance & Multi-Peer Grid Config */}
-                    <div className="p-3.5 rounded-xl bg-[#282a2c] space-y-2.5">
+                    <div className="p-3.5 rounded-xl bg-white/[0.04] ring-1 ring-white/10 space-y-2.5">
                       <div className="font-semibold text-white flex items-center gap-1.5">
-                        <Zap className="w-4 h-4 text-[#81c995]" />
-                        Desempenho para Muitas Pessoas
+                        <Zap className="w-4 h-4 text-emerald-400" />
+                        Desempenho & Densidade da Grade
                       </div>
                       <label className="flex items-center justify-between gap-3 cursor-pointer">
                         <div>
                           <div className="text-white font-medium">
                             Modo Economia de Dados / Salas Cheias
                           </div>
-                          <div className="text-[11px] text-[#9aa0a6]">
-                            Prioriza voz e tela compartilhada pausando câmeras
-                            secundárias
+                          <div className="text-[11px] text-slate-400">
+                            Prioriza voz e tela compartilhada pausando câmeras secundárias
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={lowDataMode}
                           onChange={(e) => setLowDataMode(e.target.checked)}
-                          className="w-5 h-5 accent-[#81c995] shrink-0"
+                          className="w-5 h-5 accent-emerald-500 shrink-0"
                         />
                       </label>
 
                       <div className="pt-1 hidden md:block">
-                        <div className="text-[11px] text-[#9aa0a6] mb-1.5">
-                          Máximo de vídeos por página no computador:
+                        <div className="text-[11px] text-slate-400 mb-1.5">
+                          Máximo de vídeos por página no desktop:
                         </div>
                         <div className="grid grid-cols-3 gap-1.5">
                           {([4, 9, 16] as DesktopGridDensity[]).map((num) => (
@@ -3540,11 +3594,11 @@ export function MeetingRoomView({
                                 setLayoutMode("auto");
                                 setPinnedParticipantId(null);
                               }}
-                              className={`py-1.5 rounded-lg font-medium cursor-pointer ${
+                              className={`py-1.5 rounded-lg font-semibold cursor-pointer ${
                                 desktopGridDensity === num &&
                                 layoutMode !== "spotlight"
-                                  ? "bg-[#0b57d0] text-white"
-                                  : "bg-[#1e1f20] text-[#c4c7c5] hover:bg-[#3c4043]"
+                                  ? "bg-emerald-500 text-slate-950"
+                                  : "bg-[#080A0F] text-slate-300 hover:bg-white/10"
                               }`}
                             >
                               {num} vídeos
@@ -3554,14 +3608,13 @@ export function MeetingRoomView({
                       </div>
                     </div>
 
-                    {/* Room Lock */}
-                    <div className="p-3.5 rounded-xl bg-[#282a2c] flex items-center justify-between gap-3">
+                    <div className="p-3.5 rounded-xl bg-white/[0.04] ring-1 ring-white/10 flex items-center justify-between gap-3">
                       <div>
                         <div className="font-medium text-white">
-                          Bloquear entrada na sala
+                          Trancar entrada na sala
                         </div>
-                        <div className="text-[11px] text-[#9aa0a6]">
-                          Sinalizar sala bloqueada aos participantes
+                        <div className="text-[11px] text-slate-400">
+                          Impede novas conexões P2P enquanto ativa
                         </div>
                       </div>
                       <input
@@ -3573,17 +3626,16 @@ export function MeetingRoomView({
                           webrtcEngineRef.current?.setRoomLocked(nextLocked);
                           showToast(
                             nextLocked
-                              ? "Sala bloqueada pelo organizador"
-                              : "Sala desbloqueada"
+                              ? "Sala trancada pelo organizador"
+                              : "Sala destrancada"
                           );
                         }}
-                        className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                        className="w-5 h-5 accent-emerald-500 shrink-0"
                       />
                     </div>
 
-                    {/* LGPD Controls */}
-                    <div className="p-3.5 rounded-xl bg-[#282a2c] space-y-3">
-                      <div className="font-semibold text-[#a8c7fa] flex items-center gap-1.5">
+                    <div className="p-3.5 rounded-xl bg-white/[0.04] ring-1 ring-white/10 space-y-3">
+                      <div className="font-semibold text-emerald-300 flex items-center gap-1.5">
                         <ShieldCheck className="w-4 h-4" />
                         Conformidade LGPD (Lei nº 13.709/2018)
                       </div>
@@ -3593,9 +3645,8 @@ export function MeetingRoomView({
                           <div className="font-medium text-white">
                             Mascaramento Automático DLP
                           </div>
-                          <div className="text-[11px] text-[#9aa0a6]">
-                            Ocultar CPF, CNPJ, cartão, e-mail e telefone no
-                            chat, legendas e atas
+                          <div className="text-[11px] text-slate-400">
+                            Ocultar CPF, CNPJ, cartão, e-mail e telefone no chat, legendas e atas
                           </div>
                         </div>
                         <input
@@ -3611,7 +3662,7 @@ export function MeetingRoomView({
                                 : "Mascaramento automático LGPD desativado"
                             );
                           }}
-                          className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                          className="w-5 h-5 accent-emerald-500 shrink-0"
                         />
                       </label>
 
@@ -3620,9 +3671,8 @@ export function MeetingRoomView({
                           <div className="font-medium text-white">
                             Escudo LGPD na Transmissão de Tela
                           </div>
-                          <div className="text-[11px] text-[#9aa0a6]">
-                            Oculta popups de chat na sua tela enquanto você
-                            apresenta
+                          <div className="text-[11px] text-slate-400">
+                            Oculta avisos de chat enquanto você apresenta
                           </div>
                         </div>
                         <input
@@ -3635,18 +3685,17 @@ export function MeetingRoomView({
                               screenSharePrivacyShield: checked,
                             });
                           }}
-                          className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                          className="w-5 h-5 accent-emerald-500 shrink-0"
                         />
                       </label>
 
                       <label className="flex items-center justify-between gap-3 cursor-pointer">
                         <div>
                           <div className="font-medium text-white">
-                            Ocultar Meu IP Real (Relay TURN — Art. 46)
+                            Ocultar Meu IP Real (Relay TURN · Art. 46)
                           </div>
-                          <div className="text-[11px] text-[#9aa0a6]">
-                            Força roteamento via servidor TURN sem expor seu IP
-                            direto na rede P2P
+                          <div className="text-[11px] text-slate-400">
+                            Força roteamento via servidor TURN sem expor seu IP direto
                           </div>
                         </div>
                         <input
@@ -3662,37 +3711,36 @@ export function MeetingRoomView({
                                 : "Conexão P2P híbrida padrão restaurada"
                             );
                           }}
-                          className="w-5 h-5 accent-[#a8c7fa] shrink-0"
+                          className="w-5 h-5 accent-emerald-500 shrink-0"
                         />
                       </label>
 
                       <button
                         type="button"
                         onClick={handleClearSessionTracesLgpd}
-                        className="w-full h-9 rounded-full bg-[#3c1917] hover:bg-[#52221f] text-[#f28b82] font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full h-9 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 ring-1 ring-rose-400/35 text-rose-300 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Limpar dados efêmeros desta sessão (Art. 18)</span>
                       </button>
                     </div>
 
-                    {/* ROPA Summary (Art. 37 LGPD) */}
-                    <div className="p-3.5 rounded-xl bg-[#282a2c] space-y-2">
-                      <div className="text-[11px] font-semibold text-[#9aa0a6] uppercase tracking-wider">
+                    <div className="p-3.5 rounded-xl bg-white/[0.04] ring-1 ring-white/10 space-y-2">
+                      <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                         Registro de Tratamento (Art. 37 LGPD)
                       </div>
                       {LGPD_ROPA_OPERATIONS.map((op) => (
                         <div
                           key={op.id}
-                          className="bg-[#1e1f20] rounded-lg p-2.5 space-y-0.5"
+                          className="bg-[#080A0F] rounded-lg p-2.5 space-y-0.5 ring-1 ring-white/[0.05]"
                         >
                           <div className="font-medium text-white">
                             {op.feature}
                           </div>
-                          <div className="text-[10px] text-[#a8c7fa]">
+                          <div className="text-[10px] text-emerald-300">
                             {op.legalBasis}
                           </div>
-                          <div className="text-[10px] text-[#9aa0a6]">
+                          <div className="text-[10px] text-slate-400">
                             {op.protectionMeasure}
                           </div>
                         </div>
@@ -3707,11 +3755,12 @@ export function MeetingRoomView({
       </div>
 
       {/* ========================================================================
-          MOBILE ERGONOMIC 5-BUTTON DOCK (< md)
+          MOBILE ERGONOMIC 5-BUTTON STUDIO DOCK (< md)
+          Preserves instant thumb-zone muscle memory: Mic, Cam, Reactions, Tools, End
          ======================================================================== */}
-      <footer className="md:hidden h-18 px-3 flex items-center justify-center shrink-0 relative">
+      <footer className="md:hidden h-19 px-3 flex items-center justify-center shrink-0 relative">
         {showReactionBar && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#282a2c] border border-[#3c4043] rounded-full px-3.5 py-2 flex items-center gap-2.5 shadow-2xl z-40">
+          <div className="absolute bottom-21 left-1/2 -translate-x-1/2 bg-[#10141D] ring-1 ring-white/15 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 shadow-2xl z-40">
             {REACTION_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
@@ -3735,14 +3784,16 @@ export function MeetingRoomView({
           </div>
         )}
 
-        <div className="flex items-center justify-between w-full max-w-sm bg-[#1e1f20] border border-[#3c4043]/80 rounded-full px-3 py-2 shadow-xl">
+        <div className="flex items-center justify-between w-full max-w-sm bg-[#10141D]/95 backdrop-blur-xl ring-1 ring-white/12 rounded-[22px] px-2.5 py-2 shadow-2xl">
           <button
             type="button"
             onClick={handleToggleMic}
             aria-pressed={!isMuted}
             aria-label={isMuted ? "Ativar microfone" : "Desativar microfone"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors relative cursor-pointer ${
-              isMuted ? "bg-[#ea4335] text-white" : "bg-[#0b57d0] text-white"
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors relative cursor-pointer ${
+              isMuted
+                ? "bg-rose-600 text-white ring-1 ring-rose-300/40"
+                : "bg-emerald-500 text-slate-950"
             }`}
           >
             {isMuted ? (
@@ -3757,10 +3808,10 @@ export function MeetingRoomView({
             onClick={handleToggleCamera}
             aria-pressed={!isCameraOff}
             aria-label={isCameraOff ? "Ativar câmera" : "Desativar câmera"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
               isCameraOff
-                ? "bg-[#ea4335] text-white"
-                : "bg-[#0b57d0] text-white"
+                ? "bg-rose-600 text-white ring-1 ring-rose-300/40"
+                : "bg-emerald-500 text-slate-950"
             }`}
           >
             {isCameraOff ? (
@@ -3774,10 +3825,10 @@ export function MeetingRoomView({
             type="button"
             onClick={() => setShowReactionBar((v) => !v)}
             aria-label="Reações"
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
               showReactionBar
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "bg-[#282a2c] text-[#e3e3e3]"
+                ? "bg-amber-400 text-slate-950"
+                : "bg-white/[0.06] text-slate-200"
             }`}
           >
             <Smile className="w-5 h-5" />
@@ -3786,24 +3837,24 @@ export function MeetingRoomView({
           <button
             type="button"
             onClick={() => setShowMobileToolsSheet(true)}
-            aria-label="Mais ferramentas da reunião"
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors relative cursor-pointer ${
+            aria-label="Mais ferramentas do estúdio"
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors relative cursor-pointer ${
               recordingSession || isHandRaised || isCaptionsOn || lowDataMode
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "bg-[#282a2c] text-[#e3e3e3]"
+                ? "bg-emerald-500/25 text-emerald-300 ring-1 ring-emerald-400/40"
+                : "bg-white/[0.06] text-slate-200"
             }`}
           >
             <MoreVertical className="w-5 h-5" />
             {recordingSession && (
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ea4335] absolute top-1 right-1" />
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 absolute top-1 right-1" />
             )}
           </button>
 
           <button
             type="button"
             onClick={handleEndCall}
-            aria-label="Sair da chamada"
-            className="w-15 h-12 rounded-full bg-[#ea4335] active:bg-[#d93025] text-white flex items-center justify-center shadow-md cursor-pointer"
+            aria-label="Encerrar e sair da chamada"
+            className="w-15 h-12 rounded-2xl bg-rose-600 active:bg-rose-500 text-white flex items-center justify-center shadow-md cursor-pointer"
           >
             <PhoneOff className="w-5 h-5" />
           </button>
@@ -3815,22 +3866,22 @@ export function MeetingRoomView({
         <div
           role="dialog"
           aria-modal="true"
-          className="md:hidden fixed inset-0 bg-black/60 z-50 flex items-end"
+          className="md:hidden fixed inset-0 bg-black/70 z-50 flex items-end"
           onClick={() => setShowMobileToolsSheet(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full bg-[#1e1f20] border-t border-[#3c4043] rounded-t-3xl p-5 safe-bottom space-y-4 animate-sheet-up"
+            className="w-full bg-[#10141D] ring-1 ring-white/15 rounded-t-3xl p-5 safe-bottom space-y-4 animate-sheet-up"
           >
-            <div className="w-10 h-1 rounded-full bg-[#5f6368] mx-auto" />
+            <div className="w-10 h-1 rounded-full bg-white/25 mx-auto" />
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">
-                Controles e Ferramentas
+              <h3 className="font-display text-sm font-bold text-white">
+                Ferramentas do Estúdio
               </h3>
               <button
                 type="button"
                 onClick={() => setShowMobileToolsSheet(false)}
-                className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5]"
+                className="h-8 w-8 rounded-xl bg-white/[0.06] text-slate-300 flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3844,9 +3895,9 @@ export function MeetingRoomView({
                   unlockAndNudgeRemoteAudio();
                   showToast("Áudio da chamada sincronizado e ativo");
                 }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+                className="p-3 rounded-2xl bg-white/[0.05] ring-1 ring-white/10 text-white flex flex-col items-center gap-2 font-semibold cursor-pointer"
               >
-                <Volume2 className="w-5 h-5 text-[#81c995]" />
+                <Volume2 className="w-5 h-5 text-emerald-400" />
                 <span>Ativar Som</span>
               </button>
 
@@ -3856,9 +3907,9 @@ export function MeetingRoomView({
                   setShowMobileToolsSheet(false);
                   handleFlipMobileCamera();
                 }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+                className="p-3 rounded-2xl bg-white/[0.05] ring-1 ring-white/10 text-white flex flex-col items-center gap-2 font-semibold cursor-pointer"
               >
-                <RefreshCw className="w-5 h-5 text-[#a8c7fa]" />
+                <RefreshCw className="w-5 h-5 text-emerald-300" />
                 <span>Virar Câmera</span>
               </button>
 
@@ -3873,10 +3924,10 @@ export function MeetingRoomView({
                       : "Modo HD restaurado"
                   );
                 }}
-                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-semibold cursor-pointer ${
                   lowDataMode
-                    ? "bg-[#137333] text-white"
-                    : "bg-[#282a2c] text-white"
+                    ? "bg-emerald-500 text-slate-950 font-bold"
+                    : "bg-white/[0.05] ring-1 ring-white/10 text-white"
                 }`}
               >
                 <Zap className="w-5 h-5" />
@@ -3890,14 +3941,14 @@ export function MeetingRoomView({
                   if (!recordingSession) handleStartUnlimitedRecording();
                   else handleStopAndDownloadRecording();
                 }}
-                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-semibold cursor-pointer ${
                   recordingSession
-                    ? "bg-[#ea4335] text-white"
-                    : "bg-[#282a2c] text-white"
+                    ? "bg-rose-600 text-white font-bold"
+                    : "bg-white/[0.05] ring-1 ring-white/10 text-white"
                 }`}
               >
-                <Disc className="w-5 h-5" />
-                <span>{recordingSession ? "Parar Gravação" : "Gravar"}</span>
+                <Disc className="w-5 h-5 text-rose-400" />
+                <span>{recordingSession ? "Parar REC" : "Gravar Local"}</span>
               </button>
 
               <button
@@ -3906,10 +3957,10 @@ export function MeetingRoomView({
                   setShowMobileToolsSheet(false);
                   handleToggleHandRaise();
                 }}
-                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-semibold cursor-pointer ${
                   isHandRaised
-                    ? "bg-[#fbbc04] text-[#1f1f1f]"
-                    : "bg-[#282a2c] text-white"
+                    ? "bg-amber-400 text-slate-950 font-bold"
+                    : "bg-white/[0.05] ring-1 ring-white/10 text-white"
                 }`}
               >
                 <Hand className="w-5 h-5" />
@@ -3922,14 +3973,14 @@ export function MeetingRoomView({
                   setShowMobileToolsSheet(false);
                   handleToggleCaptions();
                 }}
-                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-medium cursor-pointer ${
+                className={`p-3 rounded-2xl flex flex-col items-center gap-2 font-semibold cursor-pointer ${
                   isCaptionsOn
-                    ? "bg-[#a8c7fa] text-[#041e49]"
-                    : "bg-[#282a2c] text-white"
+                    ? "bg-emerald-500 text-slate-950 font-bold"
+                    : "bg-white/[0.05] ring-1 ring-white/10 text-white"
                 }`}
               >
                 <Captions className="w-5 h-5" />
-                <span>Legendas</span>
+                <span>Legendas CC</span>
               </button>
 
               <button
@@ -3939,9 +3990,9 @@ export function MeetingRoomView({
                   refreshMediaDevices();
                   setShowMobileDeviceModal(true);
                 }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+                className="p-3 rounded-2xl bg-white/[0.05] ring-1 ring-white/10 text-white flex flex-col items-center gap-2 font-semibold cursor-pointer"
               >
-                <Sliders className="w-5 h-5 text-[#a8c7fa]" />
+                <Sliders className="w-5 h-5 text-emerald-300" />
                 <span>Dispositivos</span>
               </button>
 
@@ -3951,10 +4002,10 @@ export function MeetingRoomView({
                   setShowMobileToolsSheet(false);
                   setActiveDrawer("ai");
                 }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+                className="p-3 rounded-2xl bg-white/[0.05] ring-1 ring-white/10 text-white flex flex-col items-center gap-2 font-semibold cursor-pointer"
               >
-                <Sparkles className="w-5 h-5 text-[#a8c7fa]" />
-                <span>Assistente IA</span>
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <span>Ata com IA</span>
               </button>
 
               <button
@@ -3963,9 +4014,9 @@ export function MeetingRoomView({
                   setShowMobileToolsSheet(false);
                   setActiveDrawer("security");
                 }}
-                className="p-3 rounded-2xl bg-[#282a2c] text-white flex flex-col items-center gap-2 font-medium cursor-pointer"
+                className="p-3 rounded-2xl bg-white/[0.05] ring-1 ring-white/10 text-white flex flex-col items-center gap-2 font-semibold cursor-pointer"
               >
-                <ShieldCheck className="w-5 h-5 text-[#81c995]" />
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
                 <span>LGPD & Sala</span>
               </button>
             </div>
@@ -3978,52 +4029,52 @@ export function MeetingRoomView({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center sm:p-4"
           onClick={() => setShowMobileDeviceModal(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-md bg-[#1e1f20] border border-[#3c4043] rounded-t-3xl sm:rounded-3xl p-5 safe-bottom space-y-4 text-xs text-white animate-sheet-up"
+            className="w-full sm:max-w-md bg-[#10141D] ring-1 ring-white/15 rounded-t-3xl sm:rounded-3xl p-5 safe-bottom space-y-4 text-xs text-white animate-sheet-up"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
+              <h3 className="font-display text-sm font-bold">
                 Áudio, Microfone e Câmera
               </h3>
               <button
                 type="button"
                 onClick={() => setShowMobileDeviceModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#282a2c]"
+                className="h-8 w-8 rounded-xl bg-white/[0.06] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="bg-[#282a2c] rounded-2xl p-3 space-y-2">
+            <div className="bg-white/[0.04] ring-1 ring-white/10 rounded-2xl p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[#c4c7c5]">Nível do seu microfone</span>
-                <span className="text-[#81c995] font-semibold">
-                  {isMuted ? "Desativado" : "Captando"}
+                <span className="text-slate-300">Nível do seu microfone</span>
+                <span className="text-emerald-400 font-bold">
+                  {isMuted ? "Silenciado" : "Captando"}
                 </span>
               </div>
-              <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
                 <div
                   style={{
                     width: `${isMuted ? 0 : Math.max(6, micInputLevel)}%`,
                   }}
-                  className="h-full bg-[#81c995] transition-all duration-75"
+                  className="h-full bg-emerald-400 transition-all duration-75"
                 />
               </div>
             </div>
 
             {audioInputs.length > 0 && (
               <div className="space-y-1.5">
-                <label className="text-[#9aa0a6] font-medium block">
+                <label className="text-slate-400 font-semibold block">
                   Microfone
                 </label>
                 <select
                   value={selectedMicId}
                   onChange={(e) => handleSelectMicDevice(e.target.value)}
-                  className="w-full bg-[#282a2c] border border-[#3c4043] rounded-xl px-3 py-2.5 text-sm text-white"
+                  className="w-full bg-[#080A0F] ring-1 ring-white/15 rounded-xl px-3 py-2.5 text-sm text-white"
                 >
                   {audioInputs.map((m) => (
                     <option key={m.deviceId} value={m.deviceId}>
@@ -4036,13 +4087,13 @@ export function MeetingRoomView({
 
             {videoInputs.length > 0 && (
               <div className="space-y-1.5">
-                <label className="text-[#9aa0a6] font-medium block">
+                <label className="text-slate-400 font-semibold block">
                   Câmera
                 </label>
                 <select
                   value={selectedCamId}
                   onChange={(e) => handleSelectCameraDevice(e.target.value)}
-                  className="w-full bg-[#282a2c] border border-[#3c4043] rounded-xl px-3 py-2.5 text-sm text-white"
+                  className="w-full bg-[#080A0F] ring-1 ring-white/15 rounded-xl px-3 py-2.5 text-sm text-white"
                 >
                   {videoInputs.map((c) => (
                     <option key={c.deviceId} value={c.deviceId}>
@@ -4060,7 +4111,7 @@ export function MeetingRoomView({
                 setShowMobileDeviceModal(false);
                 showToast("Saída de som sincronizada!");
               }}
-              className="w-full h-11 rounded-full bg-[#0b57d0] text-white font-semibold cursor-pointer"
+              className="w-full h-11 rounded-xl bg-emerald-500 text-slate-950 font-bold cursor-pointer"
             >
               Concluir e Sincronizar Áudio
             </button>
@@ -4069,49 +4120,50 @@ export function MeetingRoomView({
       )}
 
       {/* ========================================================================
-          DESKTOP FULL BOTTOM CONTROL BAR (md:flex)
+          DESKTOP FLOATING TACTILE CONTROL DOCK (md:flex)
+          Preserves universal bottom-center muscle memory + adds accessible dual cues
          ======================================================================== */}
       <footer
         ref={toolbarContainerRef}
         className="hidden md:flex h-20 px-5 items-center justify-between gap-4 shrink-0 relative"
       >
+        {/* Left: Studio AI Assistant Quick Prompt */}
         <form
           onSubmit={handleSendAiPrompt}
-          className="hidden lg:flex items-center bg-[#282a2c] hover:bg-[#323537] border border-[#3c4043] rounded-full h-12 pl-4 pr-2 w-[310px] justify-between transition-colors"
+          className="hidden lg:flex items-center bg-[#10141D]/95 hover:bg-[#151B27] ring-1 ring-white/10 rounded-2xl h-12 pl-3.5 pr-2 w-[290px] justify-between transition-colors"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Sparkles className="w-4 h-4 text-[#a8c7fa] shrink-0" />
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
             <input
               type="text"
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Pedir para IA..."
+              placeholder="Pedir ata ou resumo à IA..."
               aria-label="Pedir para IA em Português"
-              className="bg-transparent text-xs text-white placeholder-[#9aa0a6] focus:outline-none w-full truncate"
+              className="bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none w-full truncate"
             />
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="bg-[#1e1f20] text-[#c4c7c5] text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1">
-              <Eye className="w-3 h-3" />
-              Somente você
-            </span>
-            <button
-              type="submit"
-              aria-label="Enviar pergunta para IA"
-              className="w-7 h-7 rounded-full bg-[#3c4043] hover:bg-[#0b57d0] text-white flex items-center justify-center cursor-pointer"
-            >
-              <ArrowUp className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            type="submit"
+            aria-label="Enviar pergunta para IA"
+            className="w-8 h-8 rounded-xl bg-amber-400/20 hover:bg-amber-400 hover:text-slate-950 text-amber-300 flex items-center justify-center transition cursor-pointer shrink-0"
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
         </form>
 
+        {/* Center: Floating Acoustic Glass Control Dock (Universal Muscle Memory) */}
         <div
           role="toolbar"
-          aria-label="Controles de mídia e gravação da reunião"
-          className="flex items-center gap-2 mx-auto"
+          aria-label="Controles principais de áudio, vídeo e gravação"
+          className={`flex items-center gap-1.5 mx-auto rounded-[22px] p-1.5 shadow-2xl ${
+            highContrastMode
+              ? "bg-black border-2 border-yellow-400"
+              : "bg-[#10141D]/95 backdrop-blur-xl ring-1 ring-white/12"
+          }`}
         >
-          {/* 1. Split Microphone + Speaker Selector Pill */}
-          <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
+          {/* 1. Split Microphone + Speaker Selector */}
+          <div className="relative flex items-center bg-white/[0.04] rounded-2xl h-11 p-1 ring-1 ring-white/[0.07]">
             <button
               type="button"
               onClick={() => {
@@ -4122,7 +4174,7 @@ export function MeetingRoomView({
               }}
               title="Selecionar microfone e alto-falante"
               aria-label="Opções de microfone e saída de som"
-              className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
+              className="px-1.5 h-full rounded-l-xl hover:bg-white/10 text-slate-300 flex items-center cursor-pointer"
             >
               <ChevronUp className="w-3.5 h-3.5" />
             </button>
@@ -4135,10 +4187,15 @@ export function MeetingRoomView({
                   ? "Ativar microfone (Alt+M)"
                   : "Desativar microfone (Alt+M)"
               }
-              className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              title={
                 isMuted
-                  ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
-                  : "bg-[#0b57d0] text-white"
+                  ? "Ativar microfone (Alt+M)"
+                  : "Silenciar microfone (Alt+M)"
+              }
+              className={`h-9 px-3 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                isMuted
+                  ? "bg-rose-600 hover:bg-rose-500 text-white"
+                  : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
               }`}
             >
               {isMuted ? (
@@ -4146,33 +4203,36 @@ export function MeetingRoomView({
               ) : (
                 <Mic className="w-4 h-4" />
               )}
+              <span className="hidden xl:inline">
+                {isMuted ? "Mudo" : "Áudio"}
+              </span>
             </button>
 
             {openDeviceMenu === "mic" && (
-              <div className="absolute bottom-14 left-0 w-80 bg-[#282a2c] border border-[#3c4043] rounded-2xl p-3.5 shadow-2xl z-50 text-xs space-y-3">
+              <div className="absolute bottom-14 left-0 w-80 bg-[#10141D] ring-1 ring-white/15 rounded-2xl p-3.5 shadow-2xl z-50 text-xs space-y-3">
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[#9aa0a6] font-semibold">
+                  <div className="flex items-center justify-between text-slate-400 font-semibold">
                     <span>Nível de entrada do microfone</span>
-                    <span className="text-[#81c995]">
+                    <span className="font-mono-tabular text-emerald-400">
                       {isMuted ? "Mudo" : `${micInputLevel}%`}
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-[#131314] rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-[#080A0F] rounded-full overflow-hidden">
                     <div
                       style={{
                         width: `${isMuted ? 0 : Math.max(6, micInputLevel)}%`,
                       }}
-                      className="h-full bg-[#81c995] transition-all duration-75"
+                      className="h-full bg-emerald-400 transition-all duration-75"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                  <div className="text-[11px] font-semibold text-slate-400 px-1">
                     Microfones ({audioInputs.length || 1})
                   </div>
                   {audioInputs.length === 0 ? (
-                    <div className="px-2 py-1.5 text-[#c4c7c5]">
+                    <div className="px-2 py-1.5 text-slate-300">
                       Ative o microfone para listar dispositivos
                     </div>
                   ) : (
@@ -4183,8 +4243,8 @@ export function MeetingRoomView({
                         onClick={() => handleSelectMicDevice(m.deviceId)}
                         className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
                           selectedMicId === m.deviceId
-                            ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
-                            : "hover:bg-[#3c4043] text-white"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "hover:bg-white/10 text-white"
                         }`}
                       >
                         <span className="truncate">{m.label}</span>
@@ -4197,8 +4257,8 @@ export function MeetingRoomView({
                 </div>
 
                 {audioOutputs.length > 0 && (
-                  <div className="space-y-1 border-t border-[#3c4043] pt-2">
-                    <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                  <div className="space-y-1 border-t border-white/10 pt-2">
+                    <div className="text-[11px] font-semibold text-slate-400 px-1">
                       Saída de Som / Alto-falantes
                     </div>
                     {audioOutputs.map((s) => (
@@ -4208,8 +4268,8 @@ export function MeetingRoomView({
                         onClick={() => handleSelectSpeakerDevice(s.deviceId)}
                         className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
                           selectedSpeakerId === s.deviceId
-                            ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
-                            : "hover:bg-[#3c4043] text-white"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "hover:bg-white/10 text-white"
                         }`}
                       >
                         <span className="truncate">{s.label}</span>
@@ -4224,8 +4284,8 @@ export function MeetingRoomView({
             )}
           </div>
 
-          {/* 2. Split Camera + Layout Density Pill */}
-          <div className="relative flex items-center bg-[#282a2c] rounded-full h-11 p-1 border border-[#3c4043]/60">
+          {/* 2. Split Camera + Layout Density */}
+          <div className="relative flex items-center bg-white/[0.04] rounded-2xl h-11 p-1 ring-1 ring-white/[0.07]">
             <button
               type="button"
               onClick={() => {
@@ -4236,7 +4296,7 @@ export function MeetingRoomView({
               }}
               title="Selecionar câmera e layout de mosaico"
               aria-label="Opções de câmera e layout"
-              className="px-2 h-full rounded-l-full hover:bg-[#3c4043] text-[#c4c7c5] flex items-center cursor-pointer"
+              className="px-1.5 h-full rounded-l-xl hover:bg-white/10 text-slate-300 flex items-center cursor-pointer"
             >
               <ChevronUp className="w-3.5 h-3.5" />
             </button>
@@ -4249,10 +4309,15 @@ export function MeetingRoomView({
                   ? "Ativar câmera (Alt+V)"
                   : "Desativar câmera (Alt+V)"
               }
-              className={`w-10 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              title={
                 isCameraOff
-                  ? "bg-[#ea4335] text-white hover:bg-[#d93025]"
-                  : "bg-[#0b57d0] text-white"
+                  ? "Ativar câmera (Alt+V)"
+                  : "Desligar câmera (Alt+V)"
+              }
+              className={`h-9 px-3 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                isCameraOff
+                  ? "bg-rose-600 hover:bg-rose-500 text-white"
+                  : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
               }`}
             >
               {isCameraOff ? (
@@ -4260,16 +4325,19 @@ export function MeetingRoomView({
               ) : (
                 <Video className="w-4 h-4" />
               )}
+              <span className="hidden xl:inline">
+                {isCameraOff ? "Sem Vídeo" : "Vídeo"}
+              </span>
             </button>
 
             {openDeviceMenu === "camera" && (
-              <div className="absolute bottom-14 left-0 w-76 bg-[#282a2c] border border-[#3c4043] rounded-2xl p-3.5 shadow-2xl z-50 text-xs space-y-3">
+              <div className="absolute bottom-14 left-0 w-76 bg-[#10141D] ring-1 ring-white/15 rounded-2xl p-3.5 shadow-2xl z-50 text-xs space-y-3">
                 <div className="space-y-1">
-                  <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
+                  <div className="text-[11px] font-semibold text-slate-400 px-1">
                     Câmeras conectadas ({videoInputs.length || 1})
                   </div>
                   {videoInputs.length === 0 ? (
-                    <div className="px-2 py-1.5 text-[#c4c7c5]">
+                    <div className="px-2 py-1.5 text-slate-300">
                       Ative a câmera para listar dispositivos
                     </div>
                   ) : (
@@ -4280,8 +4348,8 @@ export function MeetingRoomView({
                         onClick={() => handleSelectCameraDevice(c.deviceId)}
                         className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 cursor-pointer ${
                           selectedCamId === c.deviceId
-                            ? "bg-[#0b57d0]/30 text-[#a8c7fa]"
-                            : "hover:bg-[#3c4043] text-white"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "hover:bg-white/10 text-white"
                         }`}
                       >
                         <span className="truncate">{c.label}</span>
@@ -4293,9 +4361,9 @@ export function MeetingRoomView({
                   )}
                 </div>
 
-                <div className="border-t border-[#3c4043] pt-2.5 space-y-1.5">
-                  <div className="text-[11px] font-semibold text-[#9aa0a6] px-1">
-                    Layout da grade (Otimização multiusuário)
+                <div className="border-t border-white/10 pt-2.5 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-slate-400 px-1">
+                    Densidade do mosaico
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     {([4, 9, 16] as DesktopGridDensity[]).map((num) => (
@@ -4310,11 +4378,11 @@ export function MeetingRoomView({
                           setOpenDeviceMenu(null);
                           showToast(`Mosaico ajustado para até ${num} vídeos`);
                         }}
-                        className={`py-1.5 rounded-lg font-medium cursor-pointer ${
+                        className={`py-1.5 rounded-lg font-semibold cursor-pointer ${
                           desktopGridDensity === num &&
                           layoutMode !== "spotlight"
-                            ? "bg-[#0b57d0] text-white"
-                            : "bg-[#1e1f20] text-[#c4c7c5] hover:bg-[#3c4043]"
+                            ? "bg-emerald-500 text-slate-950"
+                            : "bg-[#080A0F] text-slate-300 hover:bg-white/10"
                         }`}
                       >
                         {num} vídeos
@@ -4334,19 +4402,20 @@ export function MeetingRoomView({
             title={
               isScreenSharing
                 ? "Parar transmissão de tela (Alt+S)"
-                : "Apresentar agora sem tela infinita (Alt+S)"
+                : "Apresentar tela sem espelho infinito (Alt+S)"
             }
             aria-label="Compartilhar tela"
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`h-11 px-3 rounded-2xl flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer ${
               isScreenSharing
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "bg-white/[0.05] hover:bg-white/10 text-slate-200"
             }`}
           >
-            <MonitorUp className="w-5 h-5" />
+            <MonitorUp className="w-4 h-4" />
+            <span className="hidden xl:inline">Tela</span>
           </button>
 
-          {/* 4. Recorder Button (Alt+R) */}
+          {/* 4. Unlimited Local Recorder (Alt+R) */}
           <button
             type="button"
             aria-pressed={!!recordingSession}
@@ -4359,16 +4428,16 @@ export function MeetingRoomView({
             }}
             title={
               recordingSession
-                ? "Parar gravação (Alt+R)"
-                : "Gravar reunião (Alt+R)"
+                ? "Parar gravação local (Alt+R)"
+                : "Gravar reunião sem limite de tempo (Alt+R)"
             }
-            className={`h-11 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+            className={`h-11 px-3.5 rounded-2xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
               recordingSession
-                ? "bg-[#ea4335] text-white ring-4 ring-[#ea4335]/30"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
+                ? "bg-rose-600 text-white ring-2 ring-rose-400/50"
+                : "bg-white/[0.05] hover:bg-white/10 text-slate-200"
             }`}
           >
-            <Disc className="w-4 h-4" />
+            <Disc className={`w-4 h-4 ${recordingSession ? "animate-spin" : "text-rose-400"}`} />
             <span>{recordingSession ? "Parar" : "Gravar"}</span>
           </button>
 
@@ -4384,17 +4453,17 @@ export function MeetingRoomView({
               aria-expanded={showReactionBar}
               title="Enviar reação"
               aria-label="Enviar reação com emoji"
-              className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
                 showReactionBar
-                  ? "bg-[#a8c7fa] text-[#041e49]"
-                  : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
+                  ? "bg-amber-400 text-slate-950"
+                  : "bg-white/[0.05] hover:bg-white/10 text-slate-200"
               }`}
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="w-4 h-4" />
             </button>
 
             {showReactionBar && (
-              <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-[#282a2c] border border-[#3c4043] rounded-full px-3 py-1.5 flex items-center gap-2 shadow-2xl z-40">
+              <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-[#10141D] ring-1 ring-white/15 rounded-2xl px-3 py-1.5 flex items-center gap-2 shadow-2xl z-40">
                 {REACTION_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
@@ -4419,20 +4488,21 @@ export function MeetingRoomView({
             )}
           </div>
 
-          {/* 6. Captions (CC) */}
+          {/* 6. Live Captions (CC) */}
           <button
             type="button"
             onClick={handleToggleCaptions}
             aria-pressed={isCaptionsOn}
-            title="Ativar legendas em Português (CC) (Alt+C)"
+            title="Legendas ao vivo em Português (Alt+C)"
             aria-label="Alternar legendas ao vivo em Português"
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`h-11 px-3 rounded-2xl flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer ${
               isCaptionsOn
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "bg-white/[0.05] hover:bg-white/10 text-slate-200"
             }`}
           >
-            <Captions className="w-5 h-5" />
+            <Captions className="w-4 h-4" />
+            <span className="hidden xl:inline">CC</span>
           </button>
 
           {/* 7. Raise Hand */}
@@ -4440,18 +4510,19 @@ export function MeetingRoomView({
             type="button"
             aria-pressed={isHandRaised}
             onClick={handleToggleHandRaise}
-            title="Levantar a mão (Alt+H)"
+            title="Levantar ou abaixar a mão (Alt+H)"
             aria-label="Levantar ou abaixar a mão"
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`h-11 px-3 rounded-2xl flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer ${
               isHandRaised
-                ? "bg-[#fbbc04] text-[#1f1f1f]"
-                : "bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3]"
+                ? "bg-amber-400 text-slate-950 font-bold"
+                : "bg-white/[0.05] hover:bg-white/10 text-slate-200"
             }`}
           >
-            <Hand className="w-5 h-5" />
+            <Hand className="w-4 h-4" />
+            <span className="hidden xl:inline">Mão</span>
           </button>
 
-          {/* 8. More Options */}
+          {/* 8. More Studio Options */}
           <div className="relative">
             <button
               type="button"
@@ -4460,15 +4531,15 @@ export function MeetingRoomView({
                 setShowReactionBar(false);
                 setShowMoreMenu((v) => !v);
               }}
-              title="Mais opções"
-              aria-label="Mais opções da sala"
-              className="w-11 h-11 rounded-full bg-[#282a2c] hover:bg-[#3c4043] text-[#e3e3e3] flex items-center justify-center cursor-pointer"
+              title="Mais opções do estúdio"
+              aria-label="Mais opções do estúdio"
+              className="w-11 h-11 rounded-2xl bg-white/[0.05] hover:bg-white/10 text-slate-200 flex items-center justify-center cursor-pointer"
             >
-              <MoreVertical className="w-5 h-5" />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             {showMoreMenu && (
-              <div className="absolute bottom-14 right-0 w-76 bg-[#282a2c] border border-[#3c4043] rounded-2xl py-2 shadow-2xl z-40 text-xs">
+              <div className="absolute bottom-14 right-0 w-76 bg-[#10141D] ring-1 ring-white/15 rounded-2xl py-2 shadow-2xl z-40 text-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -4480,9 +4551,9 @@ export function MeetingRoomView({
                         : "Modo de vídeo HD restaurado"
                     );
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Zap className="w-4 h-4 text-[#81c995]" />
+                  <Zap className="w-4 h-4 text-emerald-400" />
                   <span>
                     {lowDataMode
                       ? "Desativar Economia de Dados"
@@ -4496,24 +4567,10 @@ export function MeetingRoomView({
                     unlockAndNudgeRemoteAudio();
                     showToast("Áudio da chamada sincronizado");
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Volume2 className="w-4 h-4 text-[#81c995]" />
+                  <Volume2 className="w-4 h-4 text-emerald-400" />
                   <span>Sincronizar áudio da sala</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    if (!recordingSession) handleStartUnlimitedRecording();
-                    else handleStopAndDownloadRecording();
-                  }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
-                >
-                  <Disc className="w-4 h-4 text-[#ea4335]" />
-                  <span>
-                    {recordingSession ? "Parar gravação" : "Gravar reunião"}
-                  </span>
                 </button>
                 <button
                   type="button"
@@ -4521,10 +4578,10 @@ export function MeetingRoomView({
                     setShowMoreMenu(false);
                     handleCopyRoomLink();
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Copy className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>Copiar link da reunião</span>
+                  <Copy className="w-4 h-4 text-emerald-300" />
+                  <span>Copiar link do estúdio</span>
                 </button>
                 <button
                   type="button"
@@ -4532,10 +4589,10 @@ export function MeetingRoomView({
                     setShowMoreMenu(false);
                     setActiveDrawer("security");
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4 text-[#81c995]" />
-                  <span>Central de Privacidade LGPD & Grade</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Privacidade LGPD & Grade</span>
                 </button>
                 <button
                   type="button"
@@ -4543,9 +4600,9 @@ export function MeetingRoomView({
                     setShowMoreMenu(false);
                     setShowShortcutsModal(true);
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Keyboard className="w-4 h-4 text-[#a8c7fa]" />
+                  <Keyboard className="w-4 h-4 text-amber-300" />
                   <span>Atalhos de Teclado e Acessibilidade</span>
                 </button>
                 <button
@@ -4554,64 +4611,69 @@ export function MeetingRoomView({
                     setShowMoreMenu(false);
                     handleExportMarkdownMinutes();
                   }}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#3c4043] flex items-center gap-2.5 text-white cursor-pointer"
+                  className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>Baixar resumo da reunião</span>
+                  <FileText className="w-4 h-4 text-amber-300" />
+                  <span>Baixar ata da reunião (.MD)</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* 9. End Call Wide Red Pill Button */}
+          {/* 9. Distinct Ruby End-Call Button (Universal Right-End Anchor) */}
           <button
             type="button"
             onClick={handleEndCall}
-            aria-label="Sair da chamada"
+            aria-label="Sair e encerrar chamada"
             title="Sair da chamada"
-            className="w-16 h-11 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white flex items-center justify-center shadow-md transition-colors cursor-pointer"
+            className="h-11 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer ml-1"
           >
-            <PhoneOff className="w-5 h-5" />
+            <PhoneOff className="w-4 h-4" />
+            <span className="hidden xl:inline">Sair</span>
           </button>
         </div>
 
-        {/* Right: Chat (with unread badge!), Activities/Grid, Security & LGPD Pill */}
-        <div className="flex items-center bg-[#1e1f20] border border-[#3c4043]/60 rounded-full px-3 h-11 gap-2">
+        {/* Right: Segmented Studio Side-Panel Switcher */}
+        <div className="flex items-center bg-[#10141D]/95 ring-1 ring-white/10 rounded-2xl p-1 h-12 gap-1">
           <button
             type="button"
             onClick={() =>
               setActiveDrawer((d) => (d === "chat" ? null : "chat"))
             }
-            title="Chat da reunião"
-            aria-label="Abrir chat da reunião"
-            className={`p-2 rounded-full transition-colors relative cursor-pointer ${
+            title="Chat do Estúdio"
+            aria-label="Abrir chat do estúdio"
+            className={`h-10 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors relative cursor-pointer ${
               activeDrawer === "chat"
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "text-[#c4c7c5] hover:bg-[#282a2c]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "text-slate-300 hover:bg-white/10"
             }`}
           >
             <MessageSquare className="w-4 h-4" />
+            <span className="hidden 2xl:inline">Chat</span>
             {unreadChatCount > 0 && activeDrawer !== "chat" && (
-              <span className="min-w-[16px] h-4 px-1 rounded-full bg-[#ea4335] text-white text-[10px] font-bold flex items-center justify-center absolute -top-1 -right-1">
+              <span className="min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white font-mono-tabular text-[10px] font-bold flex items-center justify-center absolute -top-1 -right-1">
                 {unreadChatCount > 9 ? "9+" : unreadChatCount}
               </span>
             )}
           </button>
+
           <button
             type="button"
             onClick={() =>
               setActiveDrawer((d) => (d === "activities" ? null : "activities"))
             }
-            title="Atividades e Gravações"
-            aria-label="Abrir gravações"
-            className={`p-2 rounded-full transition-colors cursor-pointer ${
+            title="Cofre de Gravações e Ata"
+            aria-label="Abrir cofre de gravações e ata"
+            className={`h-10 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
               activeDrawer === "activities"
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "text-[#c4c7c5] hover:bg-[#282a2c]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "text-slate-300 hover:bg-white/10"
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
+            <span className="hidden 2xl:inline">Cofre</span>
           </button>
+
           <button
             type="button"
             onClick={() =>
@@ -4619,13 +4681,14 @@ export function MeetingRoomView({
             }
             title="Segurança, Desempenho e Privacidade LGPD"
             aria-label="Controles de segurança e LGPD"
-            className={`p-2 rounded-full transition-colors cursor-pointer ${
+            className={`h-10 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
               activeDrawer === "security"
-                ? "bg-[#a8c7fa] text-[#041e49]"
-                : "text-[#c4c7c5] hover:bg-[#282a2c]"
+                ? "bg-emerald-500 text-slate-950 font-bold"
+                : "text-slate-300 hover:bg-white/10"
             }`}
           >
-            <Lock className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" />
+            <span className="hidden 2xl:inline">LGPD</span>
           </button>
         </div>
       </footer>
@@ -4635,48 +4698,48 @@ export function MeetingRoomView({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50"
           onClick={() => setShowShortcutsModal(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-[#1e1f20] border border-[#3c4043] text-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-[#10141D] ring-1 ring-white/15 text-white rounded-[28px] max-w-md w-full p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold flex items-center gap-2">
-                <Keyboard className="w-5 h-5 text-[#a8c7fa]" />
-                Atalhos de Teclado & Acessibilidade
+              <h3 className="font-display text-base font-bold flex items-center gap-2">
+                <Keyboard className="w-5 h-5 text-emerald-400" />
+                Atalhos Rápidos & Acessibilidade
               </h3>
               <button
                 type="button"
                 onClick={() => setShowShortcutsModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#282a2c] text-[#c4c7c5] cursor-pointer"
+                className="h-8 w-8 rounded-xl bg-white/[0.06] hover:bg-white/12 text-slate-300 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-2 text-xs">
               {[
-                { key: "Alt + M", action: "Ativar / Desativar Microfone" },
-                { key: "Alt + V", action: "Ativar / Desativar Câmera" },
+                { key: "Alt + M", action: "Ativar / Silenciar Microfone" },
+                { key: "Alt + V", action: "Ativar / Desligar Câmera" },
                 {
                   key: "Alt + S",
-                  action: "Compartilhar / Parar Tela (Anti-Espelho)",
+                  action: "Apresentar / Parar Tela (Anti-Espelho)",
                 },
-                { key: "Alt + R", action: "Iniciar / Parar Gravação" },
+                { key: "Alt + R", action: "Iniciar / Parar Gravação Local" },
                 {
                   key: "Alt + C",
-                  action: "Ativar / Desativar Legendas em Português (CC)",
+                  action: "Ativar / Desativar Legendas ao Vivo (CC)",
                 },
                 { key: "Alt + H", action: "Levantar / Abaixar a Mão" },
                 { key: "?", action: "Abrir este Guia de Acessibilidade" },
               ].map((item) => (
                 <div
                   key={item.key}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#282a2c]"
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.04] ring-1 ring-white/[0.07]"
                 >
-                  <span className="text-[#e3e3e3]">{item.action}</span>
-                  <kbd className="bg-[#131314] border border-[#3c4043] px-2.5 py-1 rounded-lg font-mono text-[#a8c7fa]">
+                  <span className="text-slate-200">{item.action}</span>
+                  <kbd className="bg-[#080A0F] ring-1 ring-emerald-400/30 px-2.5 py-1 rounded-lg font-mono-tabular font-bold text-emerald-300">
                     {item.key}
                   </kbd>
                 </div>
@@ -4686,7 +4749,7 @@ export function MeetingRoomView({
               <button
                 type="button"
                 onClick={() => setShowShortcutsModal(false)}
-                className="px-5 py-2 rounded-full bg-[#0b57d0] text-white text-xs font-semibold cursor-pointer"
+                className="h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold cursor-pointer"
               >
                 Fechar
               </button>

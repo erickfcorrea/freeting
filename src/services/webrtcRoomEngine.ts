@@ -104,12 +104,12 @@ export type RoomSignalPayload =
     };
 
 const AVATAR_COLORS = [
-  "#0b57d0",
-  "#0f5223",
-  "#7c3aed",
+  "#059669",
   "#b45309",
+  "#0f766e",
   "#be123c",
   "#0369a1",
+  "#334155",
 ];
 
 /**
@@ -910,7 +910,7 @@ export class FreetingWebRtcRoomEngine {
             isSpeaking: Boolean(p.isSpeaking),
             avatarColor: /^#[0-9a-fA-F]{6}$/.test(String(p.avatarColor || ""))
               ? String(p.avatarColor)
-              : "#0b57d0",
+              : "#059669",
             joinedAtIso:
               sanitizeSafeText(p.joinedAtIso, 40) || new Date().toISOString(),
           },

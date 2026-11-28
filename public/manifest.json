@@ -1,12 +1,12 @@
 {
-  "name": "FREETING — Videoconferências Sem Limites",
+  "name": "FREETING Studio — Salas de Vídeo e Gravação Local Sem Limites",
   "short_name": "FREETING",
-  "description": "Plataforma gratuita de videoconferência, chamadas P2P e gravação sem limite de tempo.",
+  "description": "Estúdio independente de videoconferência P2P, apresentação anti-espelho e gravação local sem limite de tempo.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#131314",
-  "theme_color": "#0b57d0",
+  "background_color": "#080A0F",
+  "theme_color": "#10B981",
   "lang": "pt-BR",
   "icons": [
     {

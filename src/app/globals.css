@@ -1,17 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  --meet-surface: #ffffff;
-  --meet-input-bg: #f1f3f4;
-  --meet-green-pill: #c4eed0;
-  --meet-green-text: #0f5223;
-  --meet-blue-pill: #d3e3fd;
-  --meet-blue-text: #041e49;
-  --meet-security-bg: #e8f0fe;
-  --meet-dark-bg: #131314;
-  --meet-stage-navy: #1b3a6b;
-  --meet-control-dark: #282a2c;
-  --meet-danger-red: #ea4335;
+  --studio-canvas: #080a0f;
+  --studio-surface-1: #10141d;
+  --studio-surface-2: #171d29;
+  --studio-ink: #f5f7fa;
+  --studio-muted: #94a3b8;
+  --studio-emerald: #10b981;
+  --studio-amber: #f59e0b;
+  --studio-ruby: #e11d48;
+  --studio-ring: rgba(255, 255, 255, 0.08);
+}
+
+[data-freeting-theme="light"] {
+  --studio-canvas: #f6f5f1;
+  --studio-surface-1: #ffffff;
+  --studio-surface-2: #edeae2;
+  --studio-ink: #0f1419;
+  --studio-muted: #4b5563;
+  --studio-emerald: #059669;
+  --studio-amber: #b45309;
+  --studio-ruby: #be123c;
+  --studio-ring: rgba(15, 20, 25, 0.08);
+}
+
+[data-freeting-theme="high-contrast"] {
+  --studio-canvas: #000000;
+  --studio-surface-1: #0a0a0a;
+  --studio-surface-2: #141414;
+  --studio-ink: #ffffff;
+  --studio-muted: #fef08a;
+  --studio-emerald: #4ade80;
+  --studio-amber: #facc15;
+  --studio-ruby: #fb7185;
+  --studio-ring: #facc15;
 }
 
 * {
@@ -27,12 +49,55 @@ html {
 
 body {
   margin: 0;
-  font-family: "Google Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--studio-canvas);
+  color: var(--studio-ink);
   -webkit-font-smoothing: antialiased;
   touch-action: manipulation;
 }
 
-/* Mobile Safe Area Utilities (iOS Notch & Home Indicator) */
+.font-display {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.font-mono-tabular {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-atmosphere-dark {
+  background-color: #080a0f;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 15% 0%, rgba(16, 185, 129, 0.11), transparent 65%),
+    radial-gradient(ellipse 55% 40% at 88% 12%, rgba(245, 158, 11, 0.08), transparent 60%);
+}
+
+.studio-atmosphere-light {
+  background-color: #f6f5f1;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 15% 0%, rgba(5, 150, 105, 0.08), transparent 65%),
+    radial-gradient(ellipse 55% 40% at 88% 12%, rgba(180, 83, 9, 0.06), transparent 60%);
+}
+
+.studio-card-dark {
+  background: linear-gradient(180deg, rgba(23, 29, 41, 0.86) 0%, rgba(16, 20, 29, 0.94) 100%);
+  box-shadow:
+    0 24px 60px -20px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.studio-card-light {
+  background: #ffffff;
+  box-shadow:
+    0 20px 50px -22px rgba(15, 20, 25, 0.12),
+    0 1px 2px rgba(15, 20, 25, 0.05);
+}
+
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
@@ -41,7 +106,6 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Hide scrollbars on touch-scrollable strips while keeping smooth touch momentum */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -50,10 +114,14 @@ body {
   scrollbar-width: none;
 }
 
-/* Accessible Focus Ring (WCAG 2.2 AA/AAA) */
 :focus-visible {
-  outline: 3px solid #0b57d0;
+  outline: 3px solid #10b981;
   outline-offset: 2px;
+}
+
+[data-freeting-theme="high-contrast"] :focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
 }
 
 @keyframes floatUpFade {
@@ -91,12 +159,12 @@ body {
 }
 
 .animate-sheet-up {
-  animation: slideUpSheet 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: slideUpSheet 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes eqPulse {
   0%, 100% {
-    transform: scaleY(0.35);
+    transform: scaleY(0.32);
   }
   50% {
     transform: scaleY(1);
@@ -111,4 +179,15 @@ body {
 }
 .animate-eq-3 {
   animation: eqPulse 0.8s ease-in-out infinite 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -205,13 +205,13 @@ export function createVirtualCameraStream(participantName: string, roomCode: str
     const pulse = Math.sin(frame * 0.06) * 14;
     ctx.beginPath();
     ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 108 + pulse, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(138, 180, 248, 0.25)";
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
     ctx.lineWidth = 4;
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 84, 0, Math.PI * 2);
-    ctx.fillStyle = "#0b57d0";
+    ctx.fillStyle = "#059669";
     ctx.fill();
 
     ctx.fillStyle = "#ffffff";
@@ -370,7 +370,7 @@ export class LiveUnlimitedMediaRecorder {
 
           ctx.beginPath();
           ctx.arc(cx, cy, 68, 0, Math.PI * 2);
-          ctx.fillStyle = idx % 2 === 0 ? "#0b57d0" : "#0f5223";
+          ctx.fillStyle = idx % 2 === 0 ? "#059669" : "#b45309";
           ctx.fill();
 
           ctx.fillStyle = "#ffffff";
