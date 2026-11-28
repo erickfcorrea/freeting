@@ -82,7 +82,8 @@ export function FreetingHomeDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [joinInput, setJoinInput] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<StudioSectionTab>("studio");
+  const [activeSection, setActiveSection] =
+    useState<StudioSectionTab>("studio");
 
   // Studio Theme & WCAG Accessibility Preferences (Default: Signature Obsidian Studio Dark)
   const [theme, setTheme] = useState<HomeThemeMode>("dark");
@@ -542,7 +543,9 @@ export function FreetingHomeDashboard() {
       : "bg-[#10141D] text-white ring-1 ring-white/15 shadow-2xl";
 
   return (
-    <div className={`min-h-[100dvh] flex flex-col transition-colors duration-200 ${rootShellClass}`}>
+    <div
+      className={`min-h-[100dvh] flex flex-col transition-colors duration-200 ${rootShellClass}`}
+    >
       {/* WCAG 2.4.1 Skip Link */}
       <a
         href="#main-content"
@@ -708,7 +711,9 @@ export function FreetingHomeDashboard() {
               title="Tema: Estúdio Escuro / Claro Editorial / Alto Contraste AAA"
               className={`h-10 px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer ${subtlePanelClass}`}
             >
-              {theme === "dark" && <Moon className="h-4 w-4 text-emerald-400" />}
+              {theme === "dark" && (
+                <Moon className="h-4 w-4 text-emerald-400" />
+              )}
               {theme === "light" && <Sun className="h-4 w-4 text-amber-600" />}
               {theme === "high-contrast" && (
                 <Contrast className="h-4 w-4 text-yellow-300" />
@@ -812,13 +817,19 @@ export function FreetingHomeDashboard() {
                   Reuniões e gravações livres, com ergonomia de estúdio.
                 </h1>
 
-                <p className={`text-sm sm:text-base leading-relaxed max-w-2xl ${mutedTextClass}`}>
-                  Abra uma sala criptografada em 1 clique no computador ou celular, apresente sem efeito de tela infinita e salve horas de gravação direto no seu dispositivo.
+                <p
+                  className={`text-sm sm:text-base leading-relaxed max-w-2xl ${mutedTextClass}`}
+                >
+                  Abra uma sala criptografada em 1 clique no computador ou
+                  celular, apresente sem efeito de tela infinita e salve horas
+                  de gravação direto no seu dispositivo.
                 </p>
               </div>
 
               {/* Concentric Action Console: R_outer (22px) -> inner controls (12px) */}
-              <div className={`rounded-[22px] p-3.5 sm:p-4 space-y-3.5 ${subtlePanelClass}`}>
+              <div
+                className={`rounded-[22px] p-3.5 sm:p-4 space-y-3.5 ${subtlePanelClass}`}
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                   <button
                     type="button"
@@ -910,11 +921,15 @@ export function FreetingHomeDashboard() {
               {/* Quick Trust & AI Capabilities Strip */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
                 <div className="flex flex-wrap items-center gap-4">
-                  <span className={`inline-flex items-center gap-1.5 ${mutedTextClass}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 ${mutedTextClass}`}
+                  >
                     <Disc className="h-3.5 w-3.5 text-rose-400" />
                     Gravação .MP4 (iOS) e .WebM (PC/Android)
                   </span>
-                  <span className={`inline-flex items-center gap-1.5 ${mutedTextClass}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 ${mutedTextClass}`}
+                  >
                     <Layers className="h-3.5 w-3.5 text-emerald-400" />
                     Até 16 vídeos por página + Modo Economia
                   </span>
@@ -964,7 +979,8 @@ export function FreetingHomeDashboard() {
                         Arquitetura Independente P2P
                       </div>
                       <div className="text-[11px] text-slate-300 mt-0.5">
-                        Seus vídeos e gravações nunca ficam presos em nuvem de terceiros.
+                        Seus vídeos e gravações nunca ficam presos em nuvem de
+                        terceiros.
                       </div>
                     </div>
                     <button
@@ -991,7 +1007,8 @@ export function FreetingHomeDashboard() {
                   Conheça o Estúdio em Movimento
                 </h2>
                 <p className={`text-xs sm:text-sm ${mutedTextClass}`}>
-                  Demonstração interativa em tempo real dos recursos exclusivos do FREETING
+                  Demonstração interativa em tempo real dos recursos exclusivos
+                  do FREETING
                 </p>
               </div>
             </div>
@@ -1099,14 +1116,17 @@ export function FreetingHomeDashboard() {
 
               {/* Meetings List or Acoustic Empty State */}
               {todaysMeetings.length === 0 ? (
-                <div className={`rounded-2xl p-6 text-center space-y-3 ${subtlePanelClass}`}>
+                <div
+                  className={`rounded-2xl p-6 text-center space-y-3 ${subtlePanelClass}`}
+                >
                   <FreetingEmptyIllustration />
                   <div>
                     <h3 className="font-display text-base font-bold">
                       Agenda livre nesta data
                     </h3>
                     <p className={`text-xs mt-1 ${mutedTextClass}`}>
-                      Inicie um estúdio imediato ou deixe um horário preparado para sua equipe.
+                      Inicie um estúdio imediato ou deixe um horário preparado
+                      para sua equipe.
                     </p>
                   </div>
                 </div>
@@ -1199,23 +1219,31 @@ export function FreetingHomeDashboard() {
               </div>
 
               <p className={`text-xs leading-relaxed ${mutedTextClass}`}>
-                Gravações ficam 100% no seu navegador sem upload para servidores externos, prontas para assistir ou baixar em <code>.mp4</code> / <code>.webm</code>.
+                Gravações ficam 100% no seu navegador sem upload para servidores
+                externos, prontas para assistir ou baixar em <code>.mp4</code> /{" "}
+                <code>.webm</code>.
               </p>
 
               {recordings.length === 0 ? (
-                <div className={`rounded-2xl p-6 text-center space-y-2 ${subtlePanelClass}`}>
+                <div
+                  className={`rounded-2xl p-6 text-center space-y-2 ${subtlePanelClass}`}
+                >
                   <Disc className="h-7 w-7 mx-auto text-slate-400 opacity-70" />
                   <div className="text-sm font-semibold">
                     Nenhuma gravação salva neste navegador
                   </div>
                   <p className={`text-xs ${mutedTextClass}`}>
-                    Dentro de qualquer sala, clique em <strong>Gravar (Alt+R)</strong> para registrar áudio e vídeo sem limite de tempo.
+                    Dentro de qualquer sala, clique em{" "}
+                    <strong>Gravar (Alt+R)</strong> para registrar áudio e vídeo
+                    sem limite de tempo.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
                   {recordings.map((rec) => {
-                    const ext = getRecordingFileExtension(rec.mimeType).toUpperCase();
+                    const ext = getRecordingFileExtension(
+                      rec.mimeType,
+                    ).toUpperCase();
                     return (
                       <div
                         key={rec.sessionId}
@@ -1226,8 +1254,11 @@ export function FreetingHomeDashboard() {
                             <div className="font-semibold text-sm truncate">
                               {rec.title}
                             </div>
-                            <div className={`font-mono-tabular text-[11px] mt-0.5 ${mutedTextClass}`}>
-                              {rec.roomCode} · {formatUnlimitedDuration(rec.durationSeconds)} ·{" "}
+                            <div
+                              className={`font-mono-tabular text-[11px] mt-0.5 ${mutedTextClass}`}
+                            >
+                              {rec.roomCode} ·{" "}
+                              {formatUnlimitedDuration(rec.durationSeconds)} ·{" "}
                               {formatRecordingBytes(rec.totalBytes)}
                             </div>
                           </div>
@@ -1340,7 +1371,9 @@ export function FreetingHomeDashboard() {
           aria-label="Reprodutor de gravação local"
           className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className={`rounded-t-3xl sm:rounded-3xl max-w-3xl w-full p-5 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}>
+          <div
+            className={`rounded-t-3xl sm:rounded-3xl max-w-3xl w-full p-5 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-display text-base font-bold truncate pr-2">
                 {previewRecordingUrl.title}
@@ -1374,7 +1407,9 @@ export function FreetingHomeDashboard() {
           aria-modal="true"
           className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className={`rounded-t-3xl sm:rounded-3xl max-w-md w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}>
+          <div
+            className={`rounded-t-3xl sm:rounded-3xl max-w-md w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold">
                 Link do Estúdio Pronto
@@ -1389,9 +1424,12 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <p className={`text-xs sm:text-sm ${mutedTextClass}`}>
-              Envie este endereço para quem vai participar. Ninguém precisa criar conta para entrar.
+              Envie este endereço para quem vai participar. Ninguém precisa
+              criar conta para entrar.
             </p>
-            <div className={`rounded-2xl px-3.5 py-3 flex items-center justify-between gap-2 ${subtlePanelClass}`}>
+            <div
+              className={`rounded-2xl px-3.5 py-3 flex items-center justify-between gap-2 ${subtlePanelClass}`}
+            >
               <span className="font-mono-tabular text-xs sm:text-sm truncate">
                 {formatShareableLink(
                   laterRoomCode,
@@ -1491,7 +1529,9 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}>
+              <label
+                className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}
+              >
                 Título da sessão
               </label>
               <input
@@ -1505,7 +1545,9 @@ export function FreetingHomeDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}>
+                <label
+                  className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}
+                >
                   Data selecionada
                 </label>
                 <input
@@ -1516,7 +1558,9 @@ export function FreetingHomeDashboard() {
                 />
               </div>
               <div>
-                <label className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}>
+                <label
+                  className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}
+                >
                   Horário
                 </label>
                 <input
@@ -1528,7 +1572,9 @@ export function FreetingHomeDashboard() {
               </div>
             </div>
             <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}>
+              <label
+                className={`block text-xs font-semibold mb-1.5 ${mutedTextClass}`}
+              >
                 Pauta / Observações (opcional)
               </label>
               <textarea
@@ -1564,7 +1610,9 @@ export function FreetingHomeDashboard() {
           aria-modal="true"
           className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className={`rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}>
+          <div
+            className={`rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="h-10 w-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
@@ -1584,7 +1632,10 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <p className={`text-sm leading-relaxed ${mutedTextClass}`}>
-              Dentro da sala, o painel de IA consolida legendas ao vivo e mensagens do chat para gerar atas estruturadas em Markdown, com mascaramento automático de dados sensíveis (CPF, CNPJ, e-mail e telefone).
+              Dentro da sala, o painel de IA consolida legendas ao vivo e
+              mensagens do chat para gerar atas estruturadas em Markdown, com
+              mascaramento automático de dados sensíveis (CPF, CNPJ, e-mail e
+              telefone).
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -1612,7 +1663,9 @@ export function FreetingHomeDashboard() {
           aria-modal="true"
           className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className={`rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-6 safe-bottom space-y-4 max-h-[90dvh] overflow-y-auto animate-sheet-up ${modalShellClass}`}>
+          <div
+            className={`rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-6 safe-bottom space-y-4 max-h-[90dvh] overflow-y-auto animate-sheet-up ${modalShellClass}`}
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
@@ -1631,17 +1684,23 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <p className={`text-xs leading-relaxed ${mutedTextClass}`}>
-              Em conformidade com a <strong>Lei nº 13.709/2018 (LGPD)</strong>, o FREETING opera por minimização de dados (Art. 6º, III): zero cadastro obrigatório e cofre de gravações 100% local no dispositivo do titular.
+              Em conformidade com a <strong>Lei nº 13.709/2018 (LGPD)</strong>,
+              o FREETING opera por minimização de dados (Art. 6º, III): zero
+              cadastro obrigatório e cofre de gravações 100% local no
+              dispositivo do titular.
             </p>
 
-            <div className={`p-4 rounded-2xl space-y-3 text-xs ${subtlePanelClass}`}>
+            <div
+              className={`p-4 rounded-2xl space-y-3 text-xs ${subtlePanelClass}`}
+            >
               <label className="flex items-start justify-between gap-3 cursor-pointer">
                 <div>
                   <div className="font-bold">
                     Mascaramento Automático DLP (Art. 5º e Art. 46)
                   </div>
                   <div className={`mt-0.5 ${mutedTextClass}`}>
-                    Oculta automaticamente CPFs, CNPJs, cartões, e-mails e telefones no chat e nas transcrições.
+                    Oculta automaticamente CPFs, CNPJs, cartões, e-mails e
+                    telefones no chat e nas transcrições.
                   </div>
                 </div>
                 <input
@@ -1658,7 +1717,9 @@ export function FreetingHomeDashboard() {
               </label>
             </div>
 
-            <div className={`p-4 rounded-2xl space-y-3 text-xs ${subtlePanelClass}`}>
+            <div
+              className={`p-4 rounded-2xl space-y-3 text-xs ${subtlePanelClass}`}
+            >
               <div className="font-bold">
                 Direitos Imediatos do Titular (Art. 18 da LGPD)
               </div>
@@ -1714,7 +1775,8 @@ export function FreetingHomeDashboard() {
           className={`fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[92%] rounded-2xl px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${modalShellClass}`}
         >
           <div className="leading-relaxed">
-            <strong>Privacidade por Padrão (LGPD):</strong> Sem conta obrigatória e gravações mantidas exclusivamente no seu navegador.
+            <strong>Privacidade por Padrão (LGPD):</strong> Sem conta
+            obrigatória e gravações mantidas exclusivamente no seu navegador.
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -1746,7 +1808,9 @@ export function FreetingHomeDashboard() {
           aria-modal="true"
           className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50"
         >
-          <div className={`rounded-t-3xl sm:rounded-3xl max-w-md w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}>
+          <div
+            className={`rounded-t-3xl sm:rounded-3xl max-w-md w-full p-6 safe-bottom space-y-4 animate-sheet-up ${modalShellClass}`}
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold flex items-center gap-2">
                 <Settings className="h-5 w-5 text-emerald-400" />
@@ -1762,21 +1826,29 @@ export function FreetingHomeDashboard() {
               </button>
             </div>
             <div className="space-y-2.5 text-sm">
-              <div className={`p-3.5 rounded-2xl flex items-center gap-3 ${subtlePanelClass}`}>
+              <div
+                className={`p-3.5 rounded-2xl flex items-center gap-3 ${subtlePanelClass}`}
+              >
                 <Mic className="h-5 w-5 text-emerald-400 shrink-0" />
                 <div>
-                  <div className="font-semibold">Captação de Voz Prioritária</div>
+                  <div className="font-semibold">
+                    Captação de Voz Prioritária
+                  </div>
                   <div className={`text-xs ${mutedTextClass}`}>
-                    Cancelamento de eco + seleção de microfone/saída dentro do camarim e da sala
+                    Cancelamento de eco + seleção de microfone/saída dentro do
+                    camarim e da sala
                   </div>
                 </div>
               </div>
-              <div className={`p-3.5 rounded-2xl flex items-center gap-3 ${subtlePanelClass}`}>
+              <div
+                className={`p-3.5 rounded-2xl flex items-center gap-3 ${subtlePanelClass}`}
+              >
                 <Camera className="h-5 w-5 text-amber-400 shrink-0" />
                 <div>
                   <div className="font-semibold">Vídeo HD Adaptativo (QoS)</div>
                   <div className={`text-xs ${mutedTextClass}`}>
-                    Escala automática de bitrate e FPS conforme número de participantes
+                    Escala automática de bitrate e FPS conforme número de
+                    participantes
                   </div>
                 </div>
               </div>
