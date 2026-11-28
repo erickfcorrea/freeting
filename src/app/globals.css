@@ -1,39 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --studio-canvas: #080a0f;
-  --studio-surface-1: #10141d;
-  --studio-surface-2: #171d29;
-  --studio-ink: #f5f7fa;
-  --studio-muted: #94a3b8;
-  --studio-emerald: #10b981;
-  --studio-amber: #f59e0b;
-  --studio-ruby: #e11d48;
-  --studio-ring: rgba(255, 255, 255, 0.08);
+  --app-bg: #f5f7fa;
+  --app-surface: #ffffff;
+  --app-subtle: #edf1f6;
+  --app-ink: #0f172a;
+  --app-muted: #475569;
+  --app-accent: #0d9488;
+  --app-danger: #e11d48;
 }
 
-[data-freeting-theme="light"] {
-  --studio-canvas: #f6f5f1;
-  --studio-surface-1: #ffffff;
-  --studio-surface-2: #edeae2;
-  --studio-ink: #0f1419;
-  --studio-muted: #4b5563;
-  --studio-emerald: #059669;
-  --studio-amber: #b45309;
-  --studio-ruby: #be123c;
-  --studio-ring: rgba(15, 20, 25, 0.08);
+[data-freeting-theme="dark"] {
+  --app-bg: #0d1016;
+  --app-surface: #151a23;
+  --app-subtle: #1d2430;
+  --app-ink: #f1f5f9;
+  --app-muted: #94a3b8;
+  --app-accent: #14b8a6;
+  --app-danger: #f43f5e;
 }
 
 [data-freeting-theme="high-contrast"] {
-  --studio-canvas: #000000;
-  --studio-surface-1: #0a0a0a;
-  --studio-surface-2: #141414;
-  --studio-ink: #ffffff;
-  --studio-muted: #fef08a;
-  --studio-emerald: #4ade80;
-  --studio-amber: #facc15;
-  --studio-ruby: #fb7185;
-  --studio-ring: #facc15;
+  --app-bg: #000000;
+  --app-surface: #0a0a0a;
+  --app-subtle: #141414;
+  --app-ink: #ffffff;
+  --app-muted: #fef08a;
+  --app-accent: #facc15;
+  --app-danger: #fb7185;
 }
 
 * {
@@ -49,21 +43,11 @@ html {
 
 body {
   margin: 0;
-  font-family:
-    var(--font-sans),
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  background-color: var(--studio-canvas);
-  color: var(--studio-ink);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--app-bg);
+  color: var(--app-ink);
   -webkit-font-smoothing: antialiased;
   touch-action: manipulation;
-}
-
-.font-display {
-  font-family: var(--font-display), var(--font-sans), sans-serif;
-  letter-spacing: -0.03em;
 }
 
 .font-mono-tabular {
@@ -73,54 +57,6 @@ body {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
-}
-
-.studio-atmosphere-dark {
-  background-color: #080a0f;
-  background-image:
-    radial-gradient(
-      ellipse 70% 45% at 15% 0%,
-      rgba(16, 185, 129, 0.11),
-      transparent 65%
-    ),
-    radial-gradient(
-      ellipse 55% 40% at 88% 12%,
-      rgba(245, 158, 11, 0.08),
-      transparent 60%
-    );
-}
-
-.studio-atmosphere-light {
-  background-color: #f6f5f1;
-  background-image:
-    radial-gradient(
-      ellipse 70% 45% at 15% 0%,
-      rgba(5, 150, 105, 0.08),
-      transparent 65%
-    ),
-    radial-gradient(
-      ellipse 55% 40% at 88% 12%,
-      rgba(180, 83, 9, 0.06),
-      transparent 60%
-    );
-}
-
-.studio-card-dark {
-  background: linear-gradient(
-    180deg,
-    rgba(23, 29, 41, 0.86) 0%,
-    rgba(16, 20, 29, 0.94) 100%
-  );
-  box-shadow:
-    0 24px 60px -20px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-}
-
-.studio-card-light {
-  background: #ffffff;
-  box-shadow:
-    0 20px 50px -22px rgba(15, 20, 25, 0.12),
-    0 1px 2px rgba(15, 20, 25, 0.05);
 }
 
 .safe-top {
@@ -139,8 +75,9 @@ body {
   scrollbar-width: none;
 }
 
+/* WCAG 2.2 AA/AAA High-Visibility Focus Ring */
 :focus-visible {
-  outline: 3px solid #10b981;
+  outline: 3px solid #0d9488;
   outline-offset: 2px;
 }
 
@@ -188,8 +125,7 @@ body {
 }
 
 @keyframes eqPulse {
-  0%,
-  100% {
+  0%, 100% {
     transform: scaleY(0.32);
   }
   50% {

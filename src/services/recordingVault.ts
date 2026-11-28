@@ -177,7 +177,7 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
 }
 
 /**
- * Creates a live 30fps virtual studio camera stream via HTML5 Canvas
+ * Creates a live 30fps virtual camera stream via HTML5 Canvas
  * whenever a user activates their camera on a device without a physical webcam.
  */
 export function createVirtualCameraStream(participantName: string, roomCode: string): {
@@ -229,7 +229,7 @@ export function createVirtualCameraStream(participantName: string, roomCode: str
     ctx.font = "18px sans-serif";
     ctx.fillStyle = "#81c995";
     ctx.fillText(
-      `Câmera Virtual Studio HD • Sala ${roomCode} • ${new Date().toLocaleTimeString("pt-BR")}`,
+      `Câmera Virtual HD • Sala ${roomCode} • ${new Date().toLocaleTimeString("pt-BR")}`,
       canvas.width / 2,
       canvas.height / 2 + 162
     );

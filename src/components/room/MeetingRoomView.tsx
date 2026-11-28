@@ -486,14 +486,14 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
               isFilmstripTile
                 ? "w-11 h-11 text-base rounded-2xl"
                 : "w-16 h-16 sm:w-22 sm:h-22 text-2xl sm:text-3xl rounded-3xl"
-            } font-display flex items-center justify-center font-bold text-white shadow-lg transition-transform ${
-              !participant.isMuted ? "ring-4 ring-emerald-400/60 scale-105" : "ring-1 ring-white/15"
+            } flex items-center justify-center font-bold text-white shadow-lg transition-transform ${
+              !participant.isMuted ? "ring-4 ring-teal-400/60 scale-105" : "ring-1 ring-white/15"
             }`}
           >
             {participant.name.charAt(0).toUpperCase()}
           </div>
           {!participant.isLocal && lowDataMode && !participant.isCameraOff && (
-            <span className="text-[10px] bg-black/65 text-emerald-300 ring-1 ring-emerald-400/25 px-2.5 py-0.5 rounded-lg">
+            <span className="text-[10px] bg-black/65 text-teal-300 ring-1 ring-teal-400/25 px-2.5 py-0.5 rounded-lg">
               Vídeo pausado (Economia)
             </span>
           )}
@@ -502,13 +502,13 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
 
       {/* Hover / Tap Pin & Fullscreen Pill */}
       <div className="hidden sm:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <div className="pointer-events-auto bg-[#080A0F]/85 backdrop-blur-md text-slate-200 ring-1 ring-white/15 rounded-xl px-3 py-1.5 flex items-center gap-3 shadow-xl">
+        <div className="pointer-events-auto bg-[#0D1016]/85 backdrop-blur-md text-slate-200 ring-1 ring-white/15 rounded-xl px-3 py-1.5 flex items-center gap-3 shadow-xl">
           <button
             type="button"
             onClick={onToggleFullscreen}
             title="Tela cheia"
             aria-label="Alternar tela cheia"
-            className="hover:text-emerald-300 cursor-pointer"
+            className="hover:text-teal-300 cursor-pointer"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
@@ -531,8 +531,8 @@ const ParticipantTileCard = memo(function ParticipantTileCard({
         {isPinned && <Pin className="w-3 h-3 text-amber-400 shrink-0" />}
         <span className="truncate">{participant.name}</span>
         {!isFilmstripTile && (
-          <span className="hidden sm:inline text-[10px] font-medium text-emerald-300 shrink-0">
-            · {participant.role === "HOST" ? "Estúdio" : "Convidado"}
+          <span className="hidden sm:inline text-[10px] font-medium text-teal-300 shrink-0">
+            · {participant.role === "HOST" ? "Organizador" : "Participante"}
           </span>
         )}
       </div>
@@ -679,7 +679,7 @@ export function MeetingRoomView({
       isScreenSharing: false,
       isHandRaised: false,
       isSpeaking: false,
-      avatarColor: initialIsCreator ? "#0b57d0" : "#0f5223",
+      avatarColor: initialIsCreator ? "#0d9488" : "#059669",
       joinedAtIso: new Date().toISOString(),
     },
   ]);
@@ -1589,7 +1589,7 @@ export function MeetingRoomView({
 
       showToast(
         usingVirtual
-          ? "Sem câmera física — Câmera Virtual Studio ativada"
+          ? "Sem câmera física — Câmera Virtual ativada"
           : options?.facingMode
           ? desiredFacing === "environment"
             ? "Câmera traseira ativada"
@@ -2330,7 +2330,7 @@ export function MeetingRoomView({
   }, [visibleGridParticipants.length]);
 
   // ============================================================================
-  // SCREEN 1: BROADCAST GREENROOM LOBBY ("Camarim do Estúdio")
+  // SCREEN 1: PRE-JOIN LOBBY ("Pronto para participar?")
   // ============================================================================
   if (inPreJoinLobby) {
     return (
@@ -2338,32 +2338,27 @@ export function MeetingRoomView({
         className={`min-h-[100dvh] safe-top safe-bottom flex flex-col ${
           highContrastMode
             ? "bg-black text-white"
-            : "studio-atmosphere-dark text-[#F5F7FA]"
+            : "bg-[#0D1016] text-[#F1F5F9]"
         }`}
       >
         {statusToast && (
-          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#10141D] ring-1 ring-emerald-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl">
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] bg-[#151A23] ring-1 ring-teal-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl">
             {statusToast}
           </div>
         )}
 
-        <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-white/[0.08] backdrop-blur-xl shrink-0">
+        <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-white/[0.08] shrink-0">
           <button
             type="button"
             onClick={navigateBackHome}
-            className="flex items-center gap-2.5 cursor-pointer group"
-            aria-label="Voltar para o painel inicial do FREETING Studio"
+            className="flex items-center cursor-pointer"
+            aria-label="Voltar para o início do FREETING"
           >
-            <div className="h-9 w-9 rounded-xl bg-[#121824] ring-1 ring-emerald-400/35 flex items-center justify-center">
-              <div className="flex items-end gap-0.5 h-3.5" aria-hidden="true">
-                <span className="w-1 h-2 bg-emerald-400 rounded-full" />
-                <span className="w-1 h-3.5 bg-emerald-300 rounded-full" />
-                <span className="w-1 h-2.5 bg-amber-400 rounded-full" />
-              </div>
-            </div>
-            <span className="font-display text-lg font-extrabold tracking-tight text-white">
-              FREETING
-            </span>
+            <img
+              src="/freeting-logo.svg"
+              alt="FREETING"
+              className="h-6 sm:h-7 w-auto select-none"
+            />
           </button>
 
           <div className="flex items-center gap-2">
@@ -2371,7 +2366,7 @@ export function MeetingRoomView({
               type="button"
               onClick={() => setHighContrastMode((v) => !v)}
               aria-pressed={highContrastMode}
-              aria-label="Alternar modo de Alto Contraste AAA"
+              aria-label="Alternar modo de Alto Contraste"
               className={`h-9 px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer ${
                 highContrastMode
                   ? "bg-yellow-400 text-black font-bold"
@@ -2381,19 +2376,18 @@ export function MeetingRoomView({
               <Contrast className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Alto Contraste</span>
             </button>
-            <span className="font-mono-tabular text-xs font-semibold text-emerald-300 bg-emerald-500/15 ring-1 ring-emerald-400/30 px-3 py-1.5 rounded-xl">
+            <span className="font-mono-tabular text-xs font-semibold text-teal-300 bg-teal-500/15 ring-1 ring-teal-400/30 px-3 py-1.5 rounded-xl">
               {roomCode}
             </span>
           </div>
         </header>
 
         <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-          {/* Concentric Camera Monitor: R_outer (28px) - Padding (12px) = R_inner (16px) */}
           <div
-            className={`lg:col-span-7 rounded-[28px] p-3 ${
+            className={`lg:col-span-7 rounded-[26px] p-3 ${
               highContrastMode
                 ? "bg-black border-2 border-yellow-400"
-                : "studio-card-dark ring-1 ring-white/10"
+                : "bg-[#151A23] ring-1 ring-white/10 shadow-2xl"
             }`}
           >
             <div className="bg-[#080A0F] rounded-[16px] aspect-[4/3] sm:aspect-video relative overflow-hidden flex items-center justify-center ring-1 ring-white/[0.08]">
@@ -2409,16 +2403,15 @@ export function MeetingRoomView({
                 />
               ) : (
                 <div className="text-center space-y-3 px-4">
-                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-emerald-500/20 ring-1 ring-emerald-400/35 text-emerald-300 font-display text-2xl font-bold flex items-center justify-center mx-auto">
+                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-teal-500/20 ring-1 ring-teal-400/35 text-teal-300 text-2xl font-bold flex items-center justify-center mx-auto">
                     {(displayName.trim() || "P").charAt(0).toUpperCase()}
                   </div>
                   <p className="text-xs sm:text-sm text-slate-300 font-medium">
-                    Câmera desligada no camarim · Você pode entrar apenas por voz
+                    A câmera está desligada
                   </p>
                 </div>
               )}
 
-              {/* Live Segmented VU Voice Level Indicator */}
               <div className="absolute top-3.5 left-3.5 bg-black/75 backdrop-blur-md ring-1 ring-white/15 rounded-xl px-3 py-1.5 flex items-center gap-2 text-[11px] text-white">
                 {isMuted ? (
                   <>
@@ -2427,11 +2420,11 @@ export function MeetingRoomView({
                   </>
                 ) : (
                   <>
-                    <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                    <Mic className="w-3.5 h-3.5 text-teal-400" />
                     <div className="w-16 h-1.5 bg-white/15 rounded-full overflow-hidden">
                       <div
                         style={{ width: `${Math.max(10, micInputLevel)}%` }}
-                        className="h-full bg-emerald-400 transition-all duration-75"
+                        className="h-full bg-teal-400 transition-all duration-75"
                       />
                     </div>
                   </>
@@ -2450,7 +2443,6 @@ export function MeetingRoomView({
                 </button>
               )}
 
-              {/* Accessible Dual-Cue Controls (Icon + Explicit State Text for Color-Blind Clarity) */}
               <div className="absolute bottom-3.5 inset-x-3.5 flex items-center justify-center gap-2.5 flex-wrap">
                 <button
                   type="button"
@@ -2460,18 +2452,18 @@ export function MeetingRoomView({
                   className={`h-11 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition cursor-pointer shadow-lg ${
                     isMuted
                       ? "bg-rose-600 hover:bg-rose-500 text-white ring-1 ring-rose-300/40"
-                      : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
+                      : "bg-[#0D9488] hover:bg-[#0F766E] text-white"
                   }`}
                 >
                   {isMuted ? (
                     <>
                       <MicOff className="w-4 h-4" />
-                      <span>Microfone Mudo</span>
+                      <span>Microfone desativado</span>
                     </>
                   ) : (
                     <>
                       <Mic className="w-4 h-4" />
-                      <span>Microfone Ativo</span>
+                      <span>Microfone ativo</span>
                     </>
                   )}
                 </button>
@@ -2484,18 +2476,18 @@ export function MeetingRoomView({
                   className={`h-11 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-2 transition cursor-pointer shadow-lg ${
                     isCameraOff
                       ? "bg-rose-600 hover:bg-rose-500 text-white ring-1 ring-rose-300/40"
-                      : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
+                      : "bg-[#0D9488] hover:bg-[#0F766E] text-white"
                   }`}
                 >
                   {isCameraOff ? (
                     <>
                       <VideoOff className="w-4 h-4" />
-                      <span>Câmera Off</span>
+                      <span>Câmera desligada</span>
                     </>
                   ) : (
                     <>
                       <Video className="w-4 h-4" />
-                      <span>Câmera Ativa</span>
+                      <span>Câmera ativa</span>
                     </>
                   )}
                 </button>
@@ -2503,29 +2495,25 @@ export function MeetingRoomView({
             </div>
           </div>
 
-          {/* Right Check-in Card */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               unlockAndNudgeRemoteAudio();
               setInPreJoinLobby(false);
             }}
-            className={`lg:col-span-5 rounded-[28px] p-6 sm:p-7 space-y-5 w-full ${
+            className={`lg:col-span-5 rounded-[26px] p-6 sm:p-7 space-y-5 w-full ${
               highContrastMode
                 ? "bg-black border-2 border-yellow-400"
-                : "studio-card-dark ring-1 ring-white/10"
+                : "bg-[#151A23] ring-1 ring-white/10 shadow-2xl"
             }`}
           >
             <div>
-              <span className="font-mono-tabular text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-                Check-in Acústico · Camarim
-              </span>
-              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white mt-1 text-balance">
-                Tudo pronto para entrar no estúdio?
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                Pronto para participar?
               </h1>
               <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
-                Código da sala:{" "}
-                <code className="font-mono-tabular font-bold text-emerald-300">
+                Sala:{" "}
+                <code className="font-mono-tabular font-bold text-teal-300">
                   {roomCode}
                 </code>
               </p>
@@ -2533,18 +2521,18 @@ export function MeetingRoomView({
 
             <div>
               <label
-                htmlFor="greenroom-display-name"
+                htmlFor="prejoin-display-name"
                 className="block text-xs font-semibold text-slate-300 mb-1.5"
               >
-                Como seu nome deve aparecer na sala?
+                Qual é o seu nome?
               </label>
               <input
-                id="greenroom-display-name"
+                id="prejoin-display-name"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Ex: Érick, Dra. Camila..."
-                className="w-full bg-[#080A0F] ring-1 ring-white/15 focus:ring-2 focus:ring-emerald-400 rounded-xl px-4 py-3 text-base text-white placeholder-slate-500 focus:outline-none"
+                placeholder="Digite seu nome para entrar"
+                className="w-full bg-[#0D1016] ring-1 ring-white/15 focus:ring-2 focus:ring-teal-400 rounded-xl px-4 py-3 text-base text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
 
@@ -2554,24 +2542,24 @@ export function MeetingRoomView({
                 className={`h-12 px-6 rounded-xl text-sm font-bold transition cursor-pointer flex-1 ${
                   highContrastMode
                     ? "bg-yellow-400 text-black font-extrabold"
-                    : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20"
+                    : "bg-[#0D9488] hover:bg-[#0F766E] text-white shadow-lg"
                 }`}
               >
-                Entrar no Estúdio
+                Participar agora
               </button>
               <button
                 type="button"
                 onClick={navigateBackHome}
                 className="h-12 px-5 rounded-xl bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold text-slate-200 transition cursor-pointer"
               >
-                Painel
+                Voltar
               </button>
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
               <span>
-                Transmissão P2P criptografada em trânsito (LGPD) sem cadastro obrigatório e sem limite de 60 minutos.
+                Conexão P2P protegida com criptografia em trânsito (LGPD). Sem necessidade de cadastro ou conta.
               </span>
             </p>
           </form>
@@ -2581,21 +2569,18 @@ export function MeetingRoomView({
   }
 
   // ============================================================================
-  // SCREEN 2: POST-CALL STUDIO WRAP ("Sessão Encerrada")
+  // SCREEN 2: POST-CALL SUMMARY ("Você saiu da reunião")
   // ============================================================================
   if (isCallEnded) {
     return (
-      <div className="min-h-[100dvh] safe-top safe-bottom studio-atmosphere-dark text-white flex flex-col items-center justify-center p-4 sm:p-6">
-        <div className="max-w-lg w-full studio-card-dark ring-1 ring-white/10 rounded-[28px] p-6 sm:p-8 text-center space-y-5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/35 text-emerald-300 flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-extrabold">
-            Sessão encerrada com segurança
+      <div className="min-h-[100dvh] safe-top safe-bottom bg-[#0D1016] text-white flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="max-w-lg w-full bg-[#151A23] ring-1 ring-white/10 rounded-[26px] p-6 sm:p-8 text-center space-y-5 shadow-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            Você saiu da reunião
           </h1>
           <p className="text-sm text-slate-300">
-            Sala <code className="text-emerald-300 font-mono-tabular font-bold">{roomCode}</code> ·
-            Tempo no ar:{" "}
+            Sala <code className="text-teal-300 font-mono-tabular font-bold">{roomCode}</code> ·
+            Duração:{" "}
             <strong className="text-white font-mono-tabular">
               {formatUnlimitedDuration(endedDurationSeconds)}
             </strong>
@@ -2610,7 +2595,7 @@ export function MeetingRoomView({
               }}
               className="h-11 px-4 rounded-xl bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold cursor-pointer"
             >
-              Reentrar
+              Voltar para a sala
             </button>
             <button
               type="button"
@@ -2618,14 +2603,14 @@ export function MeetingRoomView({
               className="h-11 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 ring-1 ring-amber-400/35 text-amber-200 text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
-              Baixar Ata (.MD)
+              Baixar resumo
             </button>
             <button
               type="button"
               onClick={navigateBackHome}
-              className="h-11 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-bold cursor-pointer"
+              className="h-11 px-6 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-sm font-bold cursor-pointer"
             >
-              Painel Inicial
+              Tela inicial
             </button>
           </div>
         </div>
@@ -2634,12 +2619,12 @@ export function MeetingRoomView({
   }
 
   // ============================================================================
-  // SCREEN 3: ACTIVE STUDIO ROOM — Spatial Studio Obsidian + Ergonomic Controls
+  // SCREEN 3: ACTIVE MEETING ROOM
   // ============================================================================
   return (
     <div
       className={`h-[100dvh] max-h-[100dvh] w-full safe-top safe-bottom flex flex-col justify-between overflow-hidden select-none ${
-        highContrastMode ? "bg-black text-white" : "bg-[#080A0F] text-[#F5F7FA]"
+        highContrastMode ? "bg-black text-white" : "bg-[#0D1016] text-[#F1F5F9]"
       }`}
     >
       {/* ALWAYS-MOUNTED DEDICATED REMOTE AUDIO LAYER */}
@@ -2670,34 +2655,23 @@ export function MeetingRoomView({
             unlockAndNudgeRemoteAudio();
             setIsAudioAutoplayBlocked(false);
           }}
-          className="fixed top-15 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-2 ring-2 ring-white/40 animate-bounce cursor-pointer"
+          className="fixed top-15 left-1/2 -translate-x-1/2 z-50 bg-[#0D9488] hover:bg-[#0F766E] text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-2 ring-2 ring-white/40 animate-bounce cursor-pointer"
         >
           <Volume2 className="w-4 h-4 shrink-0" />
-          <span>Toque aqui para liberar o som da sala</span>
+          <span>Toque aqui para liberar o som da chamada</span>
         </button>
       )}
 
       {statusToast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-[#10141D]/95 backdrop-blur-md ring-1 ring-emerald-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-[#151A23]/95 backdrop-blur-md ring-1 ring-teal-400/40 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
           <span className="truncate">{statusToast}</span>
         </div>
       )}
 
-      {/* TOP STUDIO TELEMETRY BAR */}
-      <header className="h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2 border-b border-white/[0.06] bg-[#080A0F]/85 backdrop-blur-md">
+      {/* TOP BAR */}
+      <header className="h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2 border-b border-white/[0.06] bg-[#0D1016]/90 backdrop-blur-md">
         <div className="flex items-center gap-2 min-w-0">
-          <div
-            aria-hidden="true"
-            className="hidden sm:flex h-8 w-8 rounded-xl bg-[#121824] ring-1 ring-emerald-400/35 items-center justify-center shrink-0"
-          >
-            <div className="flex items-end gap-0.5 h-3">
-              <span className="w-0.5 h-2 bg-emerald-400 rounded-full" />
-              <span className="w-0.5 h-3 bg-emerald-300 rounded-full" />
-              <span className="w-0.5 h-2 bg-amber-400 rounded-full" />
-            </div>
-          </div>
-
           <LiveHeaderClock />
           <span className="hidden sm:inline text-white/20">·</span>
 
@@ -2706,7 +2680,7 @@ export function MeetingRoomView({
             onClick={() => setShowReadyCard((v) => !v)}
             title="Ver link e convite da sala"
             aria-label={`Sala ${roomCode}. Clique para abrir opções de convite`}
-            className="h-8 px-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 font-mono-tabular text-xs font-bold text-emerald-300 flex items-center gap-1.5 truncate cursor-pointer"
+            className="h-8 px-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 ring-1 ring-white/10 font-mono-tabular text-xs font-bold text-teal-300 flex items-center gap-1.5 truncate cursor-pointer"
           >
             <span className="truncate">{roomCode}</span>
             <Info className="w-3.5 h-3.5 text-slate-300 shrink-0" />
@@ -2741,7 +2715,7 @@ export function MeetingRoomView({
           )}
         </div>
 
-        {/* Right Top Studio Controls */}
+        {/* Right Top Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
@@ -2954,7 +2928,7 @@ export function MeetingRoomView({
                   <MonitorUp className="w-7 h-7" />
                 </div>
 
-                <h2 className="font-display text-base sm:text-xl font-bold text-white">
+                <h2 className="text-base sm:text-xl font-bold text-white">
                   Sua apresentação está no ar para toda a sala
                 </h2>
                 <p className="text-xs text-slate-300 max-w-md mt-1.5 leading-relaxed">
@@ -3117,19 +3091,14 @@ export function MeetingRoomView({
           </div>
         )}
 
-        {/* STUDIO INVITE POPOVER CARD (Replaces old clone white/blue cards) */}
+        {/* INVITE POPOVER CARD */}
         {showReadyCard && (
           <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-5 sm:right-auto z-30 sm:w-[340px]">
-            <div className="bg-[#10141D]/95 backdrop-blur-xl ring-1 ring-white/15 text-white rounded-[22px] p-4 sm:p-5 shadow-2xl space-y-3">
+            <div className="bg-[#151A23]/95 backdrop-blur-xl ring-1 ring-white/15 text-white rounded-[22px] p-4 sm:p-5 shadow-2xl space-y-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-mono-tabular text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                    Acesso Instantâneo
-                  </span>
-                  <h2 className="font-display text-base font-bold text-white">
-                    Convide para este Estúdio
-                  </h2>
-                </div>
+                <h2 className="text-base font-bold text-white">
+                  Sua reunião está pronta
+                </h2>
                 <button
                   type="button"
                   onClick={() => setShowReadyCard(false)}
@@ -3143,13 +3112,13 @@ export function MeetingRoomView({
               <button
                 type="button"
                 onClick={handleNativeShareRoomLink}
-                className="w-full h-10 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl px-4 text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="w-full h-10 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl px-4 text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Enviar convite direto</span>
+                <span>Convidar pessoas</span>
               </button>
 
-              <div className="bg-[#080A0F] ring-1 ring-white/10 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+              <div className="bg-[#0D1016] ring-1 ring-white/10 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="font-mono-tabular text-xs text-slate-200 truncate">
                   {realShareableLink}
                 </span>
@@ -3158,7 +3127,7 @@ export function MeetingRoomView({
                   onClick={handleCopyRoomLink}
                   title="Copiar link da sala"
                   aria-label="Copiar link da sala"
-                  className="text-emerald-400 hover:text-emerald-300 p-1 cursor-pointer shrink-0"
+                  className="text-teal-400 hover:text-teal-300 p-1 cursor-pointer shrink-0"
                 >
                   {copiedLink ? (
                     <Check className="w-4 h-4" />
@@ -3190,8 +3159,8 @@ export function MeetingRoomView({
         {/* LIVE CAPTIONS OVERLAY (CC) */}
         {isCaptionsOn && captions.length > 0 && (
           <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-3 sm:px-4 pointer-events-none">
-            <div className="bg-black/88 backdrop-blur-md ring-1 ring-emerald-400/30 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm text-white shadow-2xl">
-              <div className="text-[10px] sm:text-[11px] text-emerald-300 font-bold mb-0.5">
+            <div className="bg-black/88 backdrop-blur-md ring-1 ring-teal-400/30 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm text-white shadow-2xl">
+              <div className="text-[10px] sm:text-[11px] text-teal-300 font-bold mb-0.5">
                 {captions[captions.length - 1].speakerName} · Legendas ao Vivo (PT-BR)
               </div>
               <div>{captions[captions.length - 1].text}</div>
@@ -3199,22 +3168,22 @@ export function MeetingRoomView({
           </div>
         )}
 
-        {/* ADAPTIVE STUDIO DRAWER: Bottom Sheet on Mobile (< lg), Side Panel on Desktop (lg:) */}
+        {/* ADAPTIVE DRAWER: Bottom Sheet on Mobile (< lg), Side Panel on Desktop (lg:) */}
         {activeDrawer && (
           <>
             <div
               className="lg:hidden fixed inset-0 bg-black/65 z-40"
               onClick={() => setActiveDrawer(null)}
             />
-            <aside className="fixed inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl safe-bottom z-50 lg:static lg:h-full lg:w-96 lg:rounded-[22px] bg-[#10141D] ring-1 ring-white/12 flex flex-col overflow-hidden shrink-0 animate-sheet-up">
+            <aside className="fixed inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl safe-bottom z-50 lg:static lg:h-full lg:w-96 lg:rounded-[22px] bg-[#151A23] ring-1 ring-white/12 flex flex-col overflow-hidden shrink-0 animate-sheet-up">
               <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mt-2.5 lg:hidden shrink-0" />
               <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between shrink-0">
-                <h3 className="font-display text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-white">
                   {activeDrawer === "people" &&
                     `Participantes (${participants.length})`}
-                  {activeDrawer === "chat" && "Chat do Estúdio"}
+                  {activeDrawer === "chat" && "Chat da reunião"}
                   {activeDrawer === "ai" && "Assistente IA (Português)"}
-                  {activeDrawer === "activities" && "Cofre de Gravação & Ata"}
+                  {activeDrawer === "activities" && "Gravações & Resumo"}
                   {activeDrawer === "security" &&
                     "Segurança, Rede & LGPD"}
                 </h3>
@@ -3266,7 +3235,7 @@ export function MeetingRoomView({
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div
                                 style={{ backgroundColor: p.avatarColor }}
-                                className="w-9 h-9 rounded-xl font-display flex items-center justify-center text-white font-bold shrink-0"
+                                className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shrink-0"
                               >
                                 {p.name.charAt(0).toUpperCase()}
                               </div>
@@ -3755,7 +3724,7 @@ export function MeetingRoomView({
       </div>
 
       {/* ========================================================================
-          MOBILE ERGONOMIC 5-BUTTON STUDIO DOCK (< md)
+          MOBILE ERGONOMIC 5-BUTTON DOCK (< md)
           Preserves instant thumb-zone muscle memory: Mic, Cam, Reactions, Tools, End
          ======================================================================== */}
       <footer className="md:hidden h-19 px-3 flex items-center justify-center shrink-0 relative">
@@ -3837,10 +3806,10 @@ export function MeetingRoomView({
           <button
             type="button"
             onClick={() => setShowMobileToolsSheet(true)}
-            aria-label="Mais ferramentas do estúdio"
+            aria-label="Mais ferramentas da reunião"
             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors relative cursor-pointer ${
               recordingSession || isHandRaised || isCaptionsOn || lowDataMode
-                ? "bg-emerald-500/25 text-emerald-300 ring-1 ring-emerald-400/40"
+                ? "bg-teal-500/25 text-teal-300 ring-1 ring-teal-400/40"
                 : "bg-white/[0.06] text-slate-200"
             }`}
           >
@@ -3871,12 +3840,12 @@ export function MeetingRoomView({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full bg-[#10141D] ring-1 ring-white/15 rounded-t-3xl p-5 safe-bottom space-y-4 animate-sheet-up"
+            className="w-full bg-[#151A23] ring-1 ring-white/15 rounded-t-3xl p-5 safe-bottom space-y-4 animate-sheet-up"
           >
             <div className="w-10 h-1 rounded-full bg-white/25 mx-auto" />
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-sm font-bold text-white">
-                Ferramentas do Estúdio
+              <h3 className="text-sm font-bold text-white">
+                Controles e Ferramentas
               </h3>
               <button
                 type="button"
@@ -4037,7 +4006,7 @@ export function MeetingRoomView({
             className="w-full sm:max-w-md bg-[#10141D] ring-1 ring-white/15 rounded-t-3xl sm:rounded-3xl p-5 safe-bottom space-y-4 text-xs text-white animate-sheet-up"
           >
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-sm font-bold">
+              <h3 className="text-sm font-bold">
                 Áudio, Microfone e Câmera
               </h3>
               <button
@@ -4127,7 +4096,7 @@ export function MeetingRoomView({
         ref={toolbarContainerRef}
         className="hidden md:flex h-20 px-5 items-center justify-between gap-4 shrink-0 relative"
       >
-        {/* Left: Studio AI Assistant Quick Prompt */}
+        {/* Left: AI Assistant Quick Prompt */}
         <form
           onSubmit={handleSendAiPrompt}
           className="hidden lg:flex items-center bg-[#10141D]/95 hover:bg-[#151B27] ring-1 ring-white/10 rounded-2xl h-12 pl-3.5 pr-2 w-[290px] justify-between transition-colors"
@@ -4522,7 +4491,7 @@ export function MeetingRoomView({
             <span className="hidden xl:inline">Mão</span>
           </button>
 
-          {/* 8. More Studio Options */}
+          {/* 8. More Room Options */}
           <div className="relative">
             <button
               type="button"
@@ -4531,15 +4500,15 @@ export function MeetingRoomView({
                 setShowReactionBar(false);
                 setShowMoreMenu((v) => !v);
               }}
-              title="Mais opções do estúdio"
-              aria-label="Mais opções do estúdio"
+              title="Mais opções da sala"
+              aria-label="Mais opções da sala"
               className="w-11 h-11 rounded-2xl bg-white/[0.05] hover:bg-white/10 text-slate-200 flex items-center justify-center cursor-pointer"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
 
             {showMoreMenu && (
-              <div className="absolute bottom-14 right-0 w-76 bg-[#10141D] ring-1 ring-white/15 rounded-2xl py-2 shadow-2xl z-40 text-xs">
+              <div className="absolute bottom-14 right-0 w-76 bg-[#151A23] ring-1 ring-white/15 rounded-2xl py-2 shadow-2xl z-40 text-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -4553,7 +4522,7 @@ export function MeetingRoomView({
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Zap className="w-4 h-4 text-emerald-400" />
+                  <Zap className="w-4 h-4 text-teal-400" />
                   <span>
                     {lowDataMode
                       ? "Desativar Economia de Dados"
@@ -4569,7 +4538,7 @@ export function MeetingRoomView({
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  <Volume2 className="w-4 h-4 text-teal-400" />
                   <span>Sincronizar áudio da sala</span>
                 </button>
                 <button
@@ -4580,8 +4549,8 @@ export function MeetingRoomView({
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <Copy className="w-4 h-4 text-emerald-300" />
-                  <span>Copiar link do estúdio</span>
+                  <Copy className="w-4 h-4 text-teal-300" />
+                  <span>Copiar link da reunião</span>
                 </button>
                 <button
                   type="button"
@@ -4591,7 +4560,7 @@ export function MeetingRoomView({
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-white/10 flex items-center gap-2.5 text-white cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <ShieldCheck className="w-4 h-4 text-teal-400" />
                   <span>Privacidade LGPD & Grade</span>
                 </button>
                 <button
@@ -4633,18 +4602,18 @@ export function MeetingRoomView({
           </button>
         </div>
 
-        {/* Right: Segmented Studio Side-Panel Switcher */}
-        <div className="flex items-center bg-[#10141D]/95 ring-1 ring-white/10 rounded-2xl p-1 h-12 gap-1">
+        {/* Right: Segmented Side-Panel Switcher */}
+        <div className="flex items-center bg-[#151A23]/95 ring-1 ring-white/10 rounded-2xl p-1 h-12 gap-1">
           <button
             type="button"
             onClick={() =>
               setActiveDrawer((d) => (d === "chat" ? null : "chat"))
             }
-            title="Chat do Estúdio"
-            aria-label="Abrir chat do estúdio"
+            title="Chat da reunião"
+            aria-label="Abrir chat da reunião"
             className={`h-10 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors relative cursor-pointer ${
               activeDrawer === "chat"
-                ? "bg-emerald-500 text-slate-950 font-bold"
+                ? "bg-[#0D9488] text-white font-bold"
                 : "text-slate-300 hover:bg-white/10"
             }`}
           >
@@ -4706,7 +4675,7 @@ export function MeetingRoomView({
             className="bg-[#10141D] ring-1 ring-white/15 text-white rounded-[28px] max-w-md w-full p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-base font-bold flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2">
                 <Keyboard className="w-5 h-5 text-emerald-400" />
                 Atalhos Rápidos & Acessibilidade
               </h3>
